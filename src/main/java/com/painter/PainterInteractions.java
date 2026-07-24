@@ -9,6 +9,8 @@ import net.minecraftforge.event.entity.player.PlayerInteractEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 
+import java.util.Map;
+
 /**
  * Replaces the Fabric {@code BrushItemMixin}. Instead of injecting into
  * {@code BrushItem#useOn}, we listen for the right-click event and, if the held
@@ -33,15 +35,18 @@ public final class PainterInteractions {
         ItemStack stack = event.getItemStack();
         if (!stack.is(ModItems.PAINTBRUSH.get())) return;
 
-        // Only override vanilla behavior if the brush has our custom palette assigned.
-        if (!BrushData.hasPalette(stack)) return;
-        PaletteData data = BrushData.getPalette(stack);
-        if (data == null || data.weights().isEmpty()) return;
+        // The brush can paint from a weighted palette and/or a fixed grid template.
+        int size = BrushData.getSize(stack, 1);
+        PaletteData palette = BrushData.hasPalette(stack) ? BrushData.getPalette(stack) : new PaletteData(Map.of());
+        boolean hasPalette = palette != null && !palette.weights().isEmpty();
+        boolean hasGrid = BrushData.hasGridCells(stack, size);
+        if (!hasPalette && !hasGrid) return;
 
         Player player = event.getEntity();
         BlockHitResult hit = event.getHitVec();
 
-        boolean success = PainterLogic.tryPaint(world, player, stack, hit.getBlockPos(), hit.getDirection(), data);
+        boolean success = PainterLogic.tryPaint(world, player, stack, hit.getBlockPos(), hit.getDirection(),
+                palette == null ? new PaletteData(Map.of()) : palette);
 
         // Only consume the interaction if we actually painted; otherwise let vanilla proceed.
         if (success) {

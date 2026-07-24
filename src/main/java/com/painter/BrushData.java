@@ -1,8 +1,14 @@
 package com.painter;
 
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.ListTag;
+import net.minecraft.nbt.StringTag;
 import net.minecraft.nbt.Tag;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.Blocks;
 
 /**
  * Replacement for the Fabric data-component system used in the 1.21 version.
@@ -21,6 +27,8 @@ public final class BrushData {
     private static final String SHAPE = "shape";
     private static final String PATTERN = "pattern";
     private static final String PROFILE = "profile";
+    private static final String GRID = "grid";
+    private static final String GRID_SIZE = "gridSize";
 
     private BrushData() {
     }
@@ -159,6 +167,81 @@ public final class BrushData {
     public static void removeProfile(ItemStack stack) {
         CompoundTag r = rootOrNull(stack);
         if (r != null) r.remove(PROFILE);
+        pruneIfEmpty(stack);
+    }
+
+    // --- Grid (per-cell template) ---
+    //
+    // The brush footprint is a size x size grid. Each cell holds either a specific
+    // block id or the empty string, which means RANDOM (fall back to the palette).
+    // The grid is stored row-major and is tied to the size it was built at; if the
+    // brush size changes, a grid built at a different size is ignored (treated as
+    // all-RANDOM) until edited again — but a same-size grid is preserved.
+
+    /** Returns the grid list for the given size, creating/resetting it if absent or stale. */
+    private static ListTag ensureGrid(ItemStack stack, int size) {
+        CompoundTag r = root(stack);
+        ListTag grid = r.getList(GRID, Tag.TAG_STRING);
+        if (r.getInt(GRID_SIZE) != size || grid.size() != size * size) {
+            grid = new ListTag();
+            for (int i = 0; i < size * size; i++) grid.add(StringTag.valueOf(""));
+            r.put(GRID, grid);
+            r.putInt(GRID_SIZE, size);
+        }
+        return grid;
+    }
+
+    /**
+     * The block assigned to cell (row, col) for the current size, or null if the cell
+     * is RANDOM / unset / the stored grid doesn't match this size.
+     */
+    public static Block getCell(ItemStack stack, int size, int row, int col) {
+        CompoundTag r = rootOrNull(stack);
+        if (r == null || r.getInt(GRID_SIZE) != size) return null;
+        ListTag grid = r.getList(GRID, Tag.TAG_STRING);
+        int idx = row * size + col;
+        if (idx < 0 || idx >= grid.size()) return null;
+        String id = grid.getString(idx);
+        if (id.isEmpty()) return null;
+        ResourceLocation rl = ResourceLocation.tryParse(id);
+        if (rl == null) return null;
+        Block b = BuiltInRegistries.BLOCK.get(rl);
+        return b == Blocks.AIR ? null : b;
+    }
+
+    /** Sets cell (row, col) to a specific block, or to RANDOM when block is null. */
+    public static void setCell(ItemStack stack, int size, int row, int col, Block block) {
+        ListTag grid = ensureGrid(stack, size);
+        int idx = row * size + col;
+        if (idx < 0 || idx >= grid.size()) return;
+        String value = (block == null) ? "" : BuiltInRegistries.BLOCK.getKey(block).toString();
+        grid.set(idx, StringTag.valueOf(value));
+    }
+
+    /** Sets every cell to the same block (or RANDOM when block is null). */
+    public static void fillGrid(ItemStack stack, int size, Block block) {
+        ListTag grid = ensureGrid(stack, size);
+        String value = (block == null) ? "" : BuiltInRegistries.BLOCK.getKey(block).toString();
+        for (int i = 0; i < grid.size(); i++) grid.set(i, StringTag.valueOf(value));
+    }
+
+    /** True if a grid exists for this size and has at least one non-RANDOM cell. */
+    public static boolean hasGridCells(ItemStack stack, int size) {
+        CompoundTag r = rootOrNull(stack);
+        if (r == null || r.getInt(GRID_SIZE) != size) return false;
+        ListTag grid = r.getList(GRID, Tag.TAG_STRING);
+        for (int i = 0; i < grid.size(); i++) {
+            if (!grid.getString(i).isEmpty()) return true;
+        }
+        return false;
+    }
+
+    public static void clearGrid(ItemStack stack) {
+        CompoundTag r = rootOrNull(stack);
+        if (r != null) {
+            r.remove(GRID);
+            r.remove(GRID_SIZE);
+        }
         pruneIfEmpty(stack);
     }
 

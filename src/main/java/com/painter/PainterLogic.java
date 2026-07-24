@@ -74,7 +74,9 @@ public class PainterLogic {
                 if (!isInShape(a, b, size, shape)) continue;
 
                 BlockPos targetPos = getRelativePos(centerPos, side, a, b);
-                Item item = paintSingle(world, targetPos, player, palette, brush, pattern, missingBlocks);
+                // Grid cell for this footprint position (null = RANDOM -> use palette/pattern).
+                Block fixedBlock = BrushData.getCell(brush, size, a - min, b - min);
+                Item item = paintSingle(world, targetPos, player, palette, brush, pattern, fixedBlock, missingBlocks);
 
                 if (item != null) {
                     changedCount++;
@@ -127,7 +129,8 @@ public class PainterLogic {
     }
 
     private static Item paintSingle(Level world, BlockPos pos, Player player, PaletteData palette,
-                                    ItemStack brush, PainterMod.PatternMode pattern, Set<Block> missingBlocks) {
+                                    ItemStack brush, PainterMod.PatternMode pattern, Block fixedBlock,
+                                    Set<Block> missingBlocks) {
         BlockState oldState = world.getBlockState(pos);
 
         // 1. MASK GUARD: If a mask is set, only replace blocks in the mask.
@@ -144,7 +147,8 @@ public class PainterLogic {
         // 3. UNBREAKABLE GUARD: Prevent painting Bedrock, End Portals, etc.
         if (oldState.getDestroySpeed(world, pos) < 0.0F) return null;
 
-        Block target = pickBlock(palette, pos, pattern, world.random);
+        // Fixed grid cell wins; otherwise fall back to the palette/pattern draw.
+        Block target = (fixedBlock != null) ? fixedBlock : pickBlock(palette, pos, pattern, world.random);
         if (target == null || oldState.is(target) || !isCompatible(oldState, target)) return null;
 
         if (!player.isCreative() && !consumeItem(player, target.asItem())) {

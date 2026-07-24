@@ -50,6 +50,14 @@ public class PainterCommand {
         return SharedSuggestionProvider.suggest(suggestions, builder.createOffset(builder.getStart() + lastDelim + 1));
     };
 
+    private static final SuggestionProvider<CommandSourceStack> SUGGEST_SINGLE_BLOCK = (context, builder) -> {
+        List<String> suggestions = new ArrayList<>();
+        for (ResourceLocation id : BuiltInRegistries.BLOCK.keySet()) {
+            suggestions.add(id.getNamespace().equals("minecraft") ? id.getPath() : id.toString());
+        }
+        return SharedSuggestionProvider.suggest(suggestions, builder);
+    };
+
     @SubscribeEvent
     public static void onRegisterCommands(RegisterCommandsEvent event) {
         register(event.getDispatcher());
@@ -167,6 +175,95 @@ public class PainterCommand {
                         .then(Commands.literal("checkerboard").executes(context -> setPattern(context.getSource().getPlayer(), PainterMod.PatternMode.CHECKERBOARD)))
                         .then(Commands.literal("stripes").executes(context -> setPattern(context.getSource().getPlayer(), PainterMod.PatternMode.STRIPES)))
                 )
+                // --- GRID TEMPLATE COMMANDS ---
+                .then(Commands.literal("grid")
+                        .then(Commands.literal("set")
+                                .then(Commands.argument("row", IntegerArgumentType.integer(0, 4))
+                                        .then(Commands.argument("col", IntegerArgumentType.integer(0, 4))
+                                                .then(Commands.argument("block", StringArgumentType.word())
+                                                        .suggests(SUGGEST_SINGLE_BLOCK)
+                                                        .executes(context -> {
+                                                            ServerPlayer player = context.getSource().getPlayer();
+                                                            if (player == null) return 0;
+                                                            ItemStack stack = requireBrush(player);
+                                                            if (stack == null) return 0;
+
+                                                            int size = BrushData.getSize(stack, 1);
+                                                            int row = IntegerArgumentType.getInteger(context, "row");
+                                                            int col = IntegerArgumentType.getInteger(context, "col");
+                                                            if (row >= size || col >= size) {
+                                                                player.displayClientMessage(Component.literal("§cCell out of range for size " + size + "x" + size + " (use 0-" + (size - 1) + ")."), false);
+                                                                return 0;
+                                                            }
+                                                            Block block = parseBlock(StringArgumentType.getString(context, "block"));
+                                                            if (block == null) {
+                                                                player.displayClientMessage(Component.literal("§cUnknown block."), false);
+                                                                return 0;
+                                                            }
+                                                            BrushData.setCell(stack, size, row, col, block);
+                                                            player.displayClientMessage(Component.literal("§aCell (" + row + "," + col + ") = §f" + block.getName().getString()), true);
+                                                            return 1;
+                                                        })
+                                                )
+                                        )
+                                )
+                        )
+                        .then(Commands.literal("random")
+                                .then(Commands.argument("row", IntegerArgumentType.integer(0, 4))
+                                        .then(Commands.argument("col", IntegerArgumentType.integer(0, 4))
+                                                .executes(context -> {
+                                                    ServerPlayer player = context.getSource().getPlayer();
+                                                    if (player == null) return 0;
+                                                    ItemStack stack = requireBrush(player);
+                                                    if (stack == null) return 0;
+
+                                                    int size = BrushData.getSize(stack, 1);
+                                                    int row = IntegerArgumentType.getInteger(context, "row");
+                                                    int col = IntegerArgumentType.getInteger(context, "col");
+                                                    if (row >= size || col >= size) {
+                                                        player.displayClientMessage(Component.literal("§cCell out of range for size " + size + "x" + size + " (use 0-" + (size - 1) + ")."), false);
+                                                        return 0;
+                                                    }
+                                                    BrushData.setCell(stack, size, row, col, null);
+                                                    player.displayClientMessage(Component.literal("§eCell (" + row + "," + col + ") = RANDOM"), true);
+                                                    return 1;
+                                                })
+                                        )
+                                )
+                        )
+                        .then(Commands.literal("fill")
+                                .then(Commands.argument("block", StringArgumentType.word())
+                                        .suggests(SUGGEST_SINGLE_BLOCK)
+                                        .executes(context -> {
+                                            ServerPlayer player = context.getSource().getPlayer();
+                                            if (player == null) return 0;
+                                            ItemStack stack = requireBrush(player);
+                                            if (stack == null) return 0;
+
+                                            int size = BrushData.getSize(stack, 1);
+                                            Block block = parseBlock(StringArgumentType.getString(context, "block"));
+                                            if (block == null) {
+                                                player.displayClientMessage(Component.literal("§cUnknown block."), false);
+                                                return 0;
+                                            }
+                                            BrushData.fillGrid(stack, size, block);
+                                            player.displayClientMessage(Component.literal("§aGrid filled with §f" + block.getName().getString()), true);
+                                            return 1;
+                                        })
+                                )
+                        )
+                        .then(Commands.literal("clear")
+                                .executes(context -> {
+                                    ServerPlayer player = context.getSource().getPlayer();
+                                    if (player == null) return 0;
+                                    ItemStack stack = requireBrush(player);
+                                    if (stack == null) return 0;
+                                    BrushData.clearGrid(stack);
+                                    player.displayClientMessage(Component.literal("§eGrid cleared (all cells RANDOM)."), true);
+                                    return 1;
+                                })
+                        )
+                )
                 .then(Commands.literal("set")
                         .then(Commands.argument("pattern", StringArgumentType.greedyString())
                                 .suggests(SUGGEST_BLOCKS)
@@ -244,6 +341,7 @@ public class PainterCommand {
         source.sendSuccess(() -> Component.literal("§e/paintbrush size <1-5> §7- Adjust brush radius"), false);
         source.sendSuccess(() -> Component.literal("§e/paintbrush shape <type> §7- Square, Circle, or Diamond"), false);
         source.sendSuccess(() -> Component.literal("§e/paintbrush pattern <type> §7- Random, Checkerboard, or Stripes"), false);
+        source.sendSuccess(() -> Component.literal("§e/paintbrush grid ... §7- Per-cell template: set/random <row> <col>, fill, clear"), false);
         source.sendSuccess(() -> Component.literal("§e/paintbrush save <name> §7- Save current settings to a profile"), false);
         source.sendSuccess(() -> Component.literal("§e/paintbrush load <name> §7- Load a saved profile"), false);
         source.sendSuccess(() -> Component.literal("§e/paintbrush clear §7- Wipe current brush settings"), false);
@@ -266,6 +364,14 @@ public class PainterCommand {
         BrushData.setPattern(stack, pattern);
         player.displayClientMessage(Component.literal("§bBrush pattern: §f" + pattern.name()), true);
         return 1;
+    }
+
+    /** Parses a single block id ("stone" or "modid:block"), returning null if unknown. */
+    private static Block parseBlock(String s) {
+        ResourceLocation id = s.contains(":") ? ResourceLocation.tryParse(s) : new ResourceLocation("minecraft", s);
+        if (id == null) return null;
+        Block block = BuiltInRegistries.BLOCK.get(id);
+        return block == Blocks.AIR ? null : block;
     }
 
     private static Map<Block, Integer> parsePattern(String pattern) {

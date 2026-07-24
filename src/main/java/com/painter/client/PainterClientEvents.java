@@ -46,7 +46,8 @@ public final class PainterClientEvents {
     @SubscribeEvent
     public static void onTooltip(ItemTooltipEvent event) {
         ItemStack stack = event.getItemStack();
-        if (!BrushData.hasPalette(stack) && !BrushData.hasMask(stack)) return;
+        int size = BrushData.getSize(stack, 1);
+        if (!BrushData.hasPalette(stack) && !BrushData.hasMask(stack) && !BrushData.hasGridCells(stack, size)) return;
 
         List<Component> lines = event.getToolTip();
 
@@ -56,11 +57,22 @@ public final class PainterClientEvents {
         }
 
         // 2. Display brush settings
-        int size = BrushData.getSize(stack, 1);
         PainterMod.BrushShape shape = BrushData.getShape(stack, PainterMod.BrushShape.SQUARE);
         PainterMod.PatternMode pattern = BrushData.getPattern(stack, PainterMod.PatternMode.RANDOM);
         lines.add(Component.literal("§b📐 Size: " + size + "x" + size + " §7(" + shape.name() + ")"));
         lines.add(Component.literal("§b🎲 Pattern: §7" + pattern.name()));
+
+        // 2b. Grid template preview (▪ = fixed block, · = random)
+        if (BrushData.hasGridCells(stack, size)) {
+            lines.add(Component.literal("§9🔲 Grid template:"));
+            for (int row = 0; row < size; row++) {
+                StringBuilder sb = new StringBuilder("  §7");
+                for (int col = 0; col < size; col++) {
+                    sb.append(BrushData.getCell(stack, size, row, col) != null ? "§b▪" : "§8·").append(' ');
+                }
+                lines.add(Component.literal(sb.toString()));
+            }
+        }
 
         // 3. Display Mask if it exists
         if (BrushData.hasMask(stack)) {

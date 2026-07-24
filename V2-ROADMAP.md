@@ -31,10 +31,13 @@ Data model (stored in ItemStack NBT via `BrushData`):
       a `pattern` field on the brush. Set via `/paintbrush pattern <type>`; shown
       in the tooltip. Non-random modes ignore weights and cycle the palette blocks
       (ordered by registry id). *(done)*
-- [ ] **3. The grid itself.** Introduce the N×N cell grid in `BrushData` +
-      `PainterLogic` (cell = block or RANDOM). Still command-driven for now
-      (e.g. `/paintbrush cell <x> <y> <block|random>`), so we can validate the
-      model before building UI on top of it.
+- [x] **3. The grid itself.** N×N cell grid in `BrushData` + `PainterLogic`
+      (cell = specific block, or RANDOM → falls back to palette/pattern). Grid is
+      tied to the current size, stored row-major in NBT. Command-driven:
+      `/paintbrush grid set <row> <col> <block>`, `grid random <row> <col>`,
+      `grid fill <block>`, `grid clear`. Painting now works from a palette AND/OR
+      a grid (a pure grid needs no palette). Tooltip shows an ASCII grid preview.
+      *(done)*
 - [ ] **4. Configuration GUI.** A `Screen` opened by right-clicking the brush in
       the air (override `PaintbrushItem.use`). Shows the grid (click a cell →
       assign block or RANDOM), a palette editor (add-block button, per-block
