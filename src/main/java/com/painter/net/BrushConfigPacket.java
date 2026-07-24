@@ -20,28 +20,35 @@ import java.util.Map;
 import java.util.function.Supplier;
 
 /**
- * Client -> server: apply the full config edited in the GUI to the held Paintbrush.
- * Carries the grid template (row-major, "" = RANDOM), the weighted palette, and the
- * pattern mode. The item's NBT is server-authoritative, so this is how GUI edits land.
+ * Client -> server: apply the full config edited in the GUI to the held Paintbrush —
+ * size, shape, pattern, grid template, weighted palette, and mask. The item's NBT is
+ * server-authoritative, so this is how GUI edits land.
  */
 public class BrushConfigPacket {
 
     private final int size;
+    private final String shape;
+    private final String pattern;
     private final List<String> cells;
     private final List<String> palIds;
     private final List<Integer> palWeights;
-    private final String pattern;
+    private final List<String> maskIds;
 
-    public BrushConfigPacket(int size, List<String> cells, List<String> palIds, List<Integer> palWeights, String pattern) {
+    public BrushConfigPacket(int size, String shape, String pattern, List<String> cells,
+                             List<String> palIds, List<Integer> palWeights, List<String> maskIds) {
         this.size = size;
+        this.shape = shape;
+        this.pattern = pattern;
         this.cells = cells;
         this.palIds = palIds;
         this.palWeights = palWeights;
-        this.pattern = pattern;
+        this.maskIds = maskIds;
     }
 
     public static void encode(BrushConfigPacket m, FriendlyByteBuf buf) {
         buf.writeVarInt(m.size);
+        buf.writeUtf(m.shape == null ? "SQUARE" : m.shape, 64);
+        buf.writeUtf(m.pattern == null ? "RANDOM" : m.pattern, 64);
         buf.writeVarInt(m.cells.size());
         for (String s : m.cells) buf.writeUtf(s == null ? "" : s, 256);
         buf.writeVarInt(m.palIds.size());
@@ -49,11 +56,14 @@ public class BrushConfigPacket {
             buf.writeUtf(m.palIds.get(i) == null ? "" : m.palIds.get(i), 256);
             buf.writeVarInt(m.palWeights.get(i));
         }
-        buf.writeUtf(m.pattern == null ? "RANDOM" : m.pattern, 64);
+        buf.writeVarInt(m.maskIds.size());
+        for (String s : m.maskIds) buf.writeUtf(s == null ? "" : s, 256);
     }
 
     public static BrushConfigPacket decode(FriendlyByteBuf buf) {
         int size = buf.readVarInt();
+        String shape = buf.readUtf(64);
+        String pattern = buf.readUtf(64);
         int cellCount = Math.max(0, Math.min(buf.readVarInt(), 64));
         List<String> cells = new ArrayList<>(cellCount);
         for (int i = 0; i < cellCount; i++) cells.add(buf.readUtf(256));
@@ -64,8 +74,10 @@ public class BrushConfigPacket {
             palIds.add(buf.readUtf(256));
             palWeights.add(buf.readVarInt());
         }
-        String pattern = buf.readUtf(64);
-        return new BrushConfigPacket(size, cells, palIds, palWeights, pattern);
+        int maskCount = Math.max(0, Math.min(buf.readVarInt(), 256));
+        List<String> maskIds = new ArrayList<>(maskCount);
+        for (int i = 0; i < maskCount; i++) maskIds.add(buf.readUtf(256));
+        return new BrushConfigPacket(size, shape, pattern, cells, palIds, palWeights, maskIds);
     }
 
     public static void handle(BrushConfigPacket m, Supplier<NetworkEvent.Context> ctx) {
@@ -79,7 +91,16 @@ public class BrushConfigPacket {
             ItemStack stack = player.getMainHandItem();
             if (!stack.is(ModItems.PAINTBRUSH.get())) return;
 
-            // Grid
+            BrushData.setSize(stack, m.size);
+            try {
+                BrushData.setShape(stack, PainterMod.BrushShape.valueOf(m.shape));
+            } catch (IllegalArgumentException ignored) {
+            }
+            try {
+                BrushData.setPattern(stack, PainterMod.PatternMode.valueOf(m.pattern));
+            } catch (IllegalArgumentException ignored) {
+            }
+
             BrushData.applyGrid(stack, m.size, m.cells);
 
             // Palette
@@ -94,12 +115,16 @@ public class BrushConfigPacket {
             if (weights.isEmpty()) BrushData.removePalette(stack);
             else BrushData.setPalette(stack, new PaletteData(weights));
 
-            // Pattern
-            try {
-                BrushData.setPattern(stack, PainterMod.PatternMode.valueOf(m.pattern));
-            } catch (IllegalArgumentException ignored) {
-                // leave pattern unchanged on a bad value
+            // Mask (a set of blocks; store each with weight 1)
+            Map<Block, Integer> mask = new HashMap<>();
+            for (String s : m.maskIds) {
+                ResourceLocation id = ResourceLocation.tryParse(s);
+                if (id == null) continue;
+                Block b = BuiltInRegistries.BLOCK.get(id);
+                if (b != Blocks.AIR) mask.put(b, 1);
             }
+            if (mask.isEmpty()) BrushData.removeMask(stack);
+            else BrushData.setMask(stack, new PaletteData(mask));
         });
         context.setPacketHandled(true);
     }

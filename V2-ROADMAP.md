@@ -53,6 +53,22 @@ Data model (stored in ItemStack NBT via `BrushData`):
       blocks painting handed back. In creative it just restores blocks. Not persisted
       across a server restart. *(done)*
 
+## Feedback round 1 (playtest fixes)
+
+- [x] **Everything through the UI.** Size (stepper), shape (cycle), pattern (cycle),
+      and a **mask editor** (add/remove block set) are now all in the GUI, alongside
+      the grid and palette. Commands still exist as a secondary interface.
+- [x] **Vanilla brush decoupled** — confirmed already off `Items.BRUSH` on this branch
+      (only the crafting recipe references it). Bumped `mod_version` to `4.0.0-dev` so
+      v2 jars (`painter-4.0.0-dev.jar`) don't collide with the Release 1 jar name.
+- [x] **Palette locks to 100%.** Weights auto-normalize: editing one entry (slider or
+      numeric box) proportionally rebalances the others; adding/removing re-normalizes.
+      The strip shows live percentages.
+- [x] **Split right-click.** Plain right-click paints; **Shift + right-click opens the
+      GUI** (both on a block and in the air).
+
+Remaining from the user: "a few more fixes" to be addressed next.
+
 ## Notes / open questions
 
 - Recipe is currently `brush + white_dye`; revisit once the item feels right.

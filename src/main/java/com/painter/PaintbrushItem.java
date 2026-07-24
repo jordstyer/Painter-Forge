@@ -23,12 +23,14 @@ public class PaintbrushItem extends Item {
     @Override
     public InteractionResultHolder<ItemStack> use(Level level, Player player, InteractionHand hand) {
         ItemStack stack = player.getItemInHand(hand);
-        // The config GUI (and its network apply) operate on the main-hand brush.
-        if (level.isClientSide && hand == InteractionHand.MAIN_HAND) {
-            // Load and call the client-only screen opener strictly on the physical client.
-            DistExecutor.unsafeRunWhenOn(Dist.CLIENT,
-                    () -> () -> com.painter.client.PaintbrushClient.openScreen());
+        // Shift + right-click in the air opens the config GUI (main-hand brush).
+        if (hand == InteractionHand.MAIN_HAND && player.isShiftKeyDown()) {
+            if (level.isClientSide) {
+                DistExecutor.unsafeRunWhenOn(Dist.CLIENT,
+                        () -> () -> com.painter.client.PaintbrushClient.openScreen());
+            }
+            return InteractionResultHolder.sidedSuccess(stack, level.isClientSide());
         }
-        return InteractionResultHolder.sidedSuccess(stack, level.isClientSide());
+        return InteractionResultHolder.pass(stack);
     }
 }
