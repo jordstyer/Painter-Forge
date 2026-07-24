@@ -25,7 +25,7 @@ public final class PainterNetwork {
 
     public static void register() {
         int id = 0;
-        CHANNEL.registerMessage(id++, GridUpdatePacket.class,
-                GridUpdatePacket::encode, GridUpdatePacket::decode, GridUpdatePacket::handle);
+        CHANNEL.registerMessage(id++, BrushConfigPacket.class,
+                BrushConfigPacket::encode, BrushConfigPacket::decode, BrushConfigPacket::handle);
     }
 }
