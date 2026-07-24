@@ -475,7 +475,7 @@ public class PaintbrushScreen extends Screen {
             g.fill(cx, cy, cx + SLOT, cy + SLOT, 0xFF2A2636);
             g.renderItem(e.icon, cx + 1, cy + 1);
             if (i == selectedPal) g.renderOutline(cx - 1, cy - 1, SLOT + 2, SLOT + 2, 0xFFF5C542);
-            g.drawString(this.font, e.weight + "%", cx, cy + SLOT + 1, 0x909090, false);
+            drawFittedLabel(g, e.weight + "%", cx, cy + SLOT + 1, CELL - 2, 0x909090);
             if (inBox(mouseX, mouseY, cx, cy, SLOT, SLOT)) hoverTip = e.icon.getHoverName();
         }
         if (palette.isEmpty()) g.drawString(this.font, "§8(select blocks, then + Palette)", pickerX, palStripY + 4, 0x808080, false);
@@ -499,6 +499,25 @@ public class PaintbrushScreen extends Screen {
 
     private static String trim(String s, int max) {
         return s.length() <= max ? s : s.substring(0, max - 1) + "..";
+    }
+
+    /**
+     * Draws text scaled down (never up) so it never exceeds {@code maxWidth} pixels —
+     * used for small per-slot labels like palette percentages, where e.g. "100%" is
+     * wider than the icon column and would otherwise bleed into the next entry.
+     */
+    private void drawFittedLabel(GuiGraphics g, String text, int x, int y, int maxWidth, int color) {
+        int width = this.font.width(text);
+        if (width <= maxWidth) {
+            g.drawString(this.font, text, x, y, color, false);
+            return;
+        }
+        float scale = maxWidth / (float) width;
+        g.pose().pushPose();
+        g.pose().translate(x, y, 0);
+        g.pose().scale(scale, scale, 1f);
+        g.drawString(this.font, text, 0, 0, color, false);
+        g.pose().popPose();
     }
 
     private int scrollbarX() { return pickerX + PCOLS * CELL; }
