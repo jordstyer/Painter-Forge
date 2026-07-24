@@ -38,13 +38,15 @@ Data model (stored in ItemStack NBT via `BrushData`):
       `grid fill <block>`, `grid clear`. Painting now works from a palette AND/OR
       a grid (a pure grid needs no palette). Tooltip shows an ASCII grid preview.
       *(done)*
-- [ ] **4. Configuration GUI.** A `Screen` opened by right-clicking the brush in
-      the air (override `PaintbrushItem.use`). Shows the grid (click a cell →
-      assign block or RANDOM), a palette editor (add-block button, per-block
-      slider + numeric box), and preset-fill buttons (checkerboard, stripes).
-      **Requires networking:** item NBT is server-authoritative, so "Apply"
-      sends a packet (Forge `SimpleChannel`) → server writes the config to the
-      held brush. Build incrementally: read-only view → edit+apply → grid editor.
+- [~] **4. Configuration GUI.** `Screen` opened by right-clicking the brush in the
+      air (`PaintbrushItem.use`). **Done:** the grid editor (click a cell to select,
+      right-click = RANDOM) and a **searchable, scrollable icon-grid block picker**
+      (all placeable blocks, mouse-wheel scroll, live search box). "Apply" sends a
+      `GridUpdatePacket` over a Forge `SimpleChannel` → server writes the grid to
+      the held brush (item NBT is server-authoritative). **Still TODO:** in-GUI
+      palette editor (add-block button + per-block % slider + numeric box) and
+      preset-fill buttons (checkerboard/stripes). Needs in-game playtesting —
+      layout/rendering can't be compile-verified.
 - [ ] **5. Undo (nice-to-have).** Remember the last N painted blocks per player;
       `/paintbrush undo` or a GUI button reverts them. Makes experimenting with
       patterns non-punishing since painting consumes inventory blocks.

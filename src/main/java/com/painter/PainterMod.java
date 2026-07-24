@@ -41,6 +41,9 @@ public class PainterMod {
         // Register the Paintbrush item (and any future items).
         ModItems.ITEMS.register(modEventBus);
 
+        // Set up the client<->server channel used by the configuration GUI.
+        com.painter.net.PainterNetwork.register();
+
         // Load saved brush profiles from the config directory at startup.
         ProfileManager.loadFromDisk();
         // Command/interaction/tooltip/render handlers register themselves through

@@ -225,6 +225,18 @@ public final class BrushData {
         for (int i = 0; i < grid.size(); i++) grid.set(i, StringTag.valueOf(value));
     }
 
+    /**
+     * Overwrites the whole grid from a row-major list of block ids ("" = RANDOM).
+     * Used when applying edits from the GUI. Entries beyond size*size are ignored.
+     */
+    public static void applyGrid(ItemStack stack, int size, java.util.List<String> cells) {
+        ListTag grid = ensureGrid(stack, size);
+        for (int i = 0; i < grid.size(); i++) {
+            String value = (i < cells.size() && cells.get(i) != null) ? cells.get(i) : "";
+            grid.set(i, StringTag.valueOf(value));
+        }
+    }
+
     /** True if a grid exists for this size and has at least one non-RANDOM cell. */
     public static boolean hasGridCells(ItemStack stack, int size) {
         CompoundTag r = rootOrNull(stack);
