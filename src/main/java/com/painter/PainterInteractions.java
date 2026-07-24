@@ -3,7 +3,6 @@ package com.painter;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.Items;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraftforge.event.entity.player.PlayerInteractEvent;
@@ -32,7 +31,7 @@ public final class PainterInteractions {
         if (world.isClientSide()) return; // server-authoritative
 
         ItemStack stack = event.getItemStack();
-        if (stack.getItem() != Items.BRUSH) return;
+        if (!stack.is(ModItems.PAINTBRUSH.get())) return;
 
         // Only override vanilla behavior if the brush has our custom palette assigned.
         if (!BrushData.hasPalette(stack)) return;

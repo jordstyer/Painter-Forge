@@ -3,7 +3,6 @@ package com.painter;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.Items;
 
 /**
  * Replacement for the Fabric data-component system used in the 1.21 version.
@@ -148,10 +147,10 @@ public final class BrushData {
 
     // --- Helpers ---
 
-    /** True if this stack is a brush that carries any Painter configuration. */
+    /** True if this stack is a Paintbrush that carries any Painter configuration. */
     public static boolean isConfiguredBrush(ItemStack stack) {
         return !stack.isEmpty()
-                && stack.getItem() == Items.BRUSH
+                && stack.is(ModItems.PAINTBRUSH.get())
                 && (hasPalette(stack) || hasSize(stack));
     }
 }

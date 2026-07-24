@@ -3,6 +3,7 @@ package com.painter.client;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.painter.BrushData;
+import com.painter.ModItems;
 import com.painter.PaletteData;
 import com.painter.PainterMod;
 import net.minecraft.client.Minecraft;
@@ -15,7 +16,6 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.Items;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.BlockHitResult;
@@ -177,7 +177,7 @@ public final class PainterClientEvents {
 
     private static boolean isBrush(ItemStack stack) {
         return !stack.isEmpty()
-                && stack.getItem() == Items.BRUSH
+                && stack.is(ModItems.PAINTBRUSH.get())
                 && (BrushData.hasSize(stack) || BrushData.hasPalette(stack));
     }
 

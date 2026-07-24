@@ -1,6 +1,8 @@
 package com.painter;
 
+import net.minecraftforge.eventbus.api.IEventBus;
 import net.minecraftforge.fml.common.Mod;
+import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
 
 /**
  * Forge 1.20.1 port of the Painter mod (originally Fabric 1.21).
@@ -20,6 +22,11 @@ public class PainterMod {
     }
 
     public PainterMod() {
+        IEventBus modEventBus = FMLJavaModLoadingContext.get().getModEventBus();
+
+        // Register the Paintbrush item (and any future items).
+        ModItems.ITEMS.register(modEventBus);
+
         // Load saved brush profiles from the config directory at startup.
         ProfileManager.loadFromDisk();
         // Command/interaction/tooltip/render handlers register themselves through

@@ -55,6 +55,19 @@ public class PainterCommand {
         register(event.getDispatcher());
     }
 
+    /**
+     * Returns the player's main-hand stack if it is a Paintbrush, otherwise sends a
+     * hint and returns null. All configuration commands act on the held Paintbrush.
+     */
+    private static ItemStack requireBrush(ServerPlayer player) {
+        ItemStack stack = player.getMainHandItem();
+        if (!stack.is(ModItems.PAINTBRUSH.get())) {
+            player.displayClientMessage(Component.literal("§cHold a Paintbrush in your main hand to use this command."), false);
+            return null;
+        }
+        return stack;
+    }
+
     private static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
         dispatcher.register(Commands.literal("paintbrush")
                 // --- HELP COMMAND ---
@@ -72,7 +85,8 @@ public class PainterCommand {
                                 .executes(context -> {
                                     ServerPlayer player = context.getSource().getPlayer();
                                     if (player == null) return 0;
-                                    ItemStack stack = player.getMainHandItem();
+                                    ItemStack stack = requireBrush(player);
+                                    if (stack == null) return 0;
 
                                     if (!BrushData.hasPalette(stack)) {
                                         player.displayClientMessage(Component.literal("§cYour brush has no palette to save!"), false);
@@ -98,6 +112,8 @@ public class PainterCommand {
                                 .executes(context -> {
                                     ServerPlayer player = context.getSource().getPlayer();
                                     if (player == null) return 0;
+                                    ItemStack stack = requireBrush(player);
+                                    if (stack == null) return 0;
 
                                     String name = StringArgumentType.getString(context, "name");
                                     PaletteProfile profile = ProfileManager.getProfile(name);
@@ -107,7 +123,6 @@ public class PainterCommand {
                                         return 0;
                                     }
 
-                                    ItemStack stack = player.getMainHandItem();
                                     Map<Block, Integer> weights = new HashMap<>();
                                     profile.weights().forEach((idStr, weight) -> {
                                         ResourceLocation id = ResourceLocation.tryParse(idStr);
@@ -131,11 +146,13 @@ public class PainterCommand {
                         .then(Commands.argument("value", IntegerArgumentType.integer(1, 5))
                                 .executes(context -> {
                                     ServerPlayer player = context.getSource().getPlayer();
-                                    if (player != null) {
-                                        int size = IntegerArgumentType.getInteger(context, "value");
-                                        BrushData.setSize(player.getMainHandItem(), size);
-                                        player.displayClientMessage(Component.literal("§bBrush size: " + size + "x" + size), true);
-                                    }
+                                    if (player == null) return 0;
+                                    ItemStack stack = requireBrush(player);
+                                    if (stack == null) return 0;
+
+                                    int size = IntegerArgumentType.getInteger(context, "value");
+                                    BrushData.setSize(stack, size);
+                                    player.displayClientMessage(Component.literal("§bBrush size: " + size + "x" + size), true);
                                     return 1;
                                 })
                         )
@@ -150,17 +167,18 @@ public class PainterCommand {
                                 .suggests(SUGGEST_BLOCKS)
                                 .executes(context -> {
                                     ServerPlayer player = context.getSource().getPlayer();
-                                    if (player != null) {
-                                        String pattern = StringArgumentType.getString(context, "pattern");
-                                        Map<Block, Integer> weights = parsePattern(pattern);
-                                        if (weights.isEmpty()) return 0;
+                                    if (player == null) return 0;
+                                    ItemStack stack = requireBrush(player);
+                                    if (stack == null) return 0;
 
-                                        ItemStack stack = player.getMainHandItem();
-                                        BrushData.setPalette(stack, new PaletteData(weights));
-                                        BrushData.removeProfile(stack);
+                                    String pattern = StringArgumentType.getString(context, "pattern");
+                                    Map<Block, Integer> weights = parsePattern(pattern);
+                                    if (weights.isEmpty()) return 0;
 
-                                        player.displayClientMessage(Component.literal("§aBrush palette updated!"), true);
-                                    }
+                                    BrushData.setPalette(stack, new PaletteData(weights));
+                                    BrushData.removeProfile(stack);
+
+                                    player.displayClientMessage(Component.literal("§aBrush palette updated!"), true);
                                     return 1;
                                 })
                         )
@@ -170,24 +188,28 @@ public class PainterCommand {
                                 .suggests(SUGGEST_BLOCKS)
                                 .executes(context -> {
                                     ServerPlayer player = context.getSource().getPlayer();
-                                    if (player != null) {
-                                        String pattern = StringArgumentType.getString(context, "blocks");
-                                        Map<Block, Integer> blocks = parsePattern(pattern);
-                                        if (blocks.isEmpty()) return 0;
+                                    if (player == null) return 0;
+                                    ItemStack stack = requireBrush(player);
+                                    if (stack == null) return 0;
 
-                                        BrushData.setMask(player.getMainHandItem(), new PaletteData(blocks));
-                                        player.displayClientMessage(Component.literal("§aBrush mask updated!"), true);
-                                    }
+                                    String pattern = StringArgumentType.getString(context, "blocks");
+                                    Map<Block, Integer> blocks = parsePattern(pattern);
+                                    if (blocks.isEmpty()) return 0;
+
+                                    BrushData.setMask(stack, new PaletteData(blocks));
+                                    player.displayClientMessage(Component.literal("§aBrush mask updated!"), true);
                                     return 1;
                                 })
                         )
                         .then(Commands.literal("clear")
                                 .executes(context -> {
                                     ServerPlayer player = context.getSource().getPlayer();
-                                    if (player != null) {
-                                        BrushData.removeMask(player.getMainHandItem());
-                                        player.displayClientMessage(Component.literal("§eBrush mask cleared."), true);
-                                    }
+                                    if (player == null) return 0;
+                                    ItemStack stack = requireBrush(player);
+                                    if (stack == null) return 0;
+
+                                    BrushData.removeMask(stack);
+                                    player.displayClientMessage(Component.literal("§eBrush mask cleared."), true);
                                     return 1;
                                 })
                         )
@@ -195,13 +217,14 @@ public class PainterCommand {
                 .then(Commands.literal("clear")
                         .executes(context -> {
                             ServerPlayer player = context.getSource().getPlayer();
-                            if (player != null) {
-                                ItemStack stack = player.getMainHandItem();
-                                BrushData.removePalette(stack);
-                                BrushData.removeProfile(stack);
-                                BrushData.removeMask(stack);
-                                player.displayClientMessage(Component.literal("§eBrush palette and mask cleared."), true);
-                            }
+                            if (player == null) return 0;
+                            ItemStack stack = requireBrush(player);
+                            if (stack == null) return 0;
+
+                            BrushData.removePalette(stack);
+                            BrushData.removeProfile(stack);
+                            BrushData.removeMask(stack);
+                            player.displayClientMessage(Component.literal("§eBrush palette and mask cleared."), true);
                             return 1;
                         })
                 )
@@ -210,6 +233,7 @@ public class PainterCommand {
 
     private static void sendHelpMessage(CommandSourceStack source) {
         source.sendSuccess(() -> Component.literal("§6§l=== Painter Mod Help ==="), false);
+        source.sendSuccess(() -> Component.literal("§7Craft a §fPaintbrush §7(brush + white dye) and hold it to configure."), false);
         source.sendSuccess(() -> Component.literal("§e/paintbrush set <pattern> §7- Define blocks (e.g. 50 stone, 50 grass)"), false);
         source.sendSuccess(() -> Component.literal("§e/paintbrush mask <blocks> §7- Set blocks to target (e.g. stone,dirt)"), false);
         source.sendSuccess(() -> Component.literal("§e/paintbrush size <1-5> §7- Adjust brush radius"), false);
@@ -221,10 +245,11 @@ public class PainterCommand {
     }
 
     private static int setShape(ServerPlayer player, PainterMod.BrushShape shape) {
-        if (player != null) {
-            BrushData.setShape(player.getMainHandItem(), shape);
-            player.displayClientMessage(Component.literal("§bBrush shape: §f" + shape.name()), true);
-        }
+        if (player == null) return 0;
+        ItemStack stack = requireBrush(player);
+        if (stack == null) return 0;
+        BrushData.setShape(stack, shape);
+        player.displayClientMessage(Component.literal("§bBrush shape: §f" + shape.name()), true);
         return 1;
     }
 
