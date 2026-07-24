@@ -403,11 +403,11 @@ public class PaintbrushScreen extends Screen {
         g.blit(BACKGROUND, leftPos, topPos, 0, 0, IMG_W, IMG_H, IMG_W, IMG_H);
 
         boolean custom = mode == PainterMod.BrushMode.CUSTOM;
-        g.drawString(this.font, "Paintbrush", leftPos + 10, topPos + 8, 0xFFFFFF, false);
-        g.drawString(this.font, custom ? "Grid (custom)" : "Grid (ignored)", gridX, topPos + 22, custom ? 0xA0A0B0 : 0x707070, false);
-        g.drawString(this.font, "Blocks", pickerX, topPos + 8, 0xA0A0B0, false);
-        g.drawString(this.font, "Size:", gridX, topPos + 166, 0xC0C0D0, false);
-        g.drawString(this.font, String.valueOf(size), gridX + 66, topPos + 166, 0xFFFFFF, false);
+        g.drawString(this.font, "Paintbrush", leftPos + 10, topPos + 8, 0xFFFFFF, true);
+        g.drawString(this.font, custom ? "Grid (custom)" : "Grid (ignored)", gridX, topPos + 22, custom ? 0xE6E6EE : 0xB6BECA, true);
+        g.drawString(this.font, "Blocks", pickerX, topPos + 8, 0xE6E6EE, true);
+        g.drawString(this.font, "Size:", gridX, topPos + 166, 0xE6E6EE, true);
+        g.drawString(this.font, String.valueOf(size), gridX + 66, topPos + 166, 0xFFFFFF, true);
 
         Component hoverTip = null;
 
@@ -432,13 +432,13 @@ public class PaintbrushScreen extends Screen {
 
         // active paint block (custom mode)
         if (custom) {
-            g.drawString(this.font, "Paint:", gridX, topPos + 230, 0xC0C0D0, false);
+            g.drawString(this.font, "Paint:", gridX, topPos + 230, 0xE6E6EE, true);
             if (selectedPal >= 0 && selectedPal < palette.size()) {
                 PalEntry e = palette.get(selectedPal);
                 g.renderItem(e.icon, gridX + 36, topPos + 226);
-                g.drawString(this.font, trim(e.icon.getHoverName().getString(), 12), gridX + 56, topPos + 230, 0xFFFFFF, false);
+                g.drawString(this.font, trim(e.icon.getHoverName().getString(), 12), gridX + 56, topPos + 230, 0xFFFFFF, true);
             } else {
-                g.drawString(this.font, "§8pick a palette block", gridX + 36, topPos + 230, 0x808080, false);
+                g.drawString(this.font, "pick a palette block", gridX + 36, topPos + 230, 0xC8C8D0, true);
             }
         }
 
@@ -467,10 +467,10 @@ public class PaintbrushScreen extends Screen {
             g.fill(barX, thumbY, barX + 4, thumbY + thumbH, 0xFF5A5478);
         }
         if (!pickerSelection.isEmpty())
-            g.drawString(this.font, pickerSelection.size() + " selected", pickerX, selCountY, 0xF5C542, false);
+            g.drawString(this.font, pickerSelection.size() + " selected", pickerX, selCountY, 0xF5C542, true);
 
         // palette
-        g.drawString(this.font, "Palette (=100%)", pickerX, palLabelY, 0xA0A0B0, false);
+        g.drawString(this.font, "Palette (=100%)", pickerX, palLabelY, 0xE6E6EE, true);
         for (int i = 0; i < palette.size(); i++) {
             int cx = pickerX + i * CELL, cy = palStripY;
             if (cx + SLOT > leftPos + IMG_W - 8) break;
@@ -478,13 +478,13 @@ public class PaintbrushScreen extends Screen {
             g.fill(cx, cy, cx + SLOT, cy + SLOT, 0xFF2A2636);
             g.renderItem(e.icon, cx + 1, cy + 1);
             if (i == selectedPal) g.renderOutline(cx - 1, cy - 1, SLOT + 2, SLOT + 2, 0xFFF5C542);
-            drawFittedLabel(g, e.weight + "%", cx, cy + SLOT + 1, CELL - 2, 0x909090);
+            drawFittedLabel(g, e.weight + "%", cx, cy + SLOT + 1, CELL - 2, 0xF0F0F0);
             if (inBox(mouseX, mouseY, cx, cy, SLOT, SLOT)) hoverTip = e.icon.getHoverName();
         }
-        if (palette.isEmpty()) g.drawString(this.font, "§8(select blocks, then + Palette)", pickerX, palStripY + 4, 0x808080, false);
+        if (palette.isEmpty()) g.drawString(this.font, "(select blocks, then + Palette)", pickerX, palStripY + 4, 0xD0D0D8, true);
 
         // mask
-        g.drawString(this.font, "Mask", pickerX, maskLabelY, 0xA0A0B0, false);
+        g.drawString(this.font, "Mask", pickerX, maskLabelY, 0xE6E6EE, true);
         for (int i = 0; i < mask.size(); i++) {
             int cx = pickerX + i * CELL, cy = maskStripY;
             if (cx + SLOT > leftPos + IMG_W - 8) break;
@@ -494,7 +494,7 @@ public class PaintbrushScreen extends Screen {
             if (i == selectedMask) g.renderOutline(cx - 1, cy - 1, SLOT + 2, SLOT + 2, 0xFFF5C542);
             if (inBox(mouseX, mouseY, cx, cy, SLOT, SLOT)) hoverTip = e.icon().getHoverName();
         }
-        if (mask.isEmpty()) g.drawString(this.font, "§8(none — paints over anything)", pickerX, maskStripY + 4, 0x808080, false);
+        if (mask.isEmpty()) g.drawString(this.font, "(none — paints over anything)", pickerX, maskStripY + 4, 0xD0D0D8, true);
 
         super.render(g, mouseX, mouseY, partialTick);
         if (hoverTip != null) g.renderTooltip(this.font, hoverTip, mouseX, mouseY);
@@ -512,14 +512,14 @@ public class PaintbrushScreen extends Screen {
     private void drawFittedLabel(GuiGraphics g, String text, int x, int y, int maxWidth, int color) {
         int width = this.font.width(text);
         if (width <= maxWidth) {
-            g.drawString(this.font, text, x, y, color, false);
+            g.drawString(this.font, text, x, y, color, true);
             return;
         }
         float scale = maxWidth / (float) width;
         g.pose().pushPose();
         g.pose().translate(x, y, 0);
         g.pose().scale(scale, scale, 1f);
-        g.drawString(this.font, text, 0, 0, color, false);
+        g.drawString(this.font, text, 0, 0, color, true);
         g.pose().popPose();
     }
 
