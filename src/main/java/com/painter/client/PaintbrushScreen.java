@@ -38,6 +38,9 @@ import java.util.Set;
  */
 public class PaintbrushScreen extends Screen {
 
+    private static final ResourceLocation BACKGROUND =
+            new ResourceLocation(PainterMod.MOD_ID, "textures/gui/config_bg.png");
+
     private static final int IMG_W = 340;
     private static final int IMG_H = 306;
     private static final int CELL = 20;
@@ -396,8 +399,8 @@ public class PaintbrushScreen extends Screen {
         this.renderBackground(g);
         if (cells.length != size * size) { super.render(g, mouseX, mouseY, partialTick); return; }
 
-        g.fill(leftPos, topPos, leftPos + IMG_W, topPos + IMG_H, 0xF0141018);
-        g.renderOutline(leftPos, topPos, IMG_W, IMG_H, 0xFF3A3450);
+        // Painter-themed background (falls back to a flat panel if the texture is missing).
+        g.blit(BACKGROUND, leftPos, topPos, 0, 0, IMG_W, IMG_H, IMG_W, IMG_H);
 
         boolean custom = mode == PainterMod.BrushMode.CUSTOM;
         g.drawString(this.font, "Paintbrush", leftPos + 10, topPos + 8, 0xFFFFFF, false);
