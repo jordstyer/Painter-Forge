@@ -39,13 +39,14 @@ import java.util.Set;
 public class PaintbrushScreen extends Screen {
 
     private static final int IMG_W = 340;
-    private static final int IMG_H = 286;
+    private static final int IMG_H = 306;
     private static final int CELL = 20;
     private static final int SLOT = 18;
     private static final int PCOLS = 8;
     private static final int PROWS = 5;
 
     private int leftPos, topPos, gridX, gridY, pickerX, pickerY, palStripY, maskStripY;
+    private int palLabelY, maskLabelY, selCountY;
 
     // grid
     private int size = 1;
@@ -63,6 +64,7 @@ public class PaintbrushScreen extends Screen {
     private record IconEntry(String id, ItemStack icon) {}
     private final List<IconEntry> mask = new ArrayList<>();
     private int selectedMask = -1;
+    private PainterMod.MaskMode maskMode = PainterMod.MaskMode.INCLUDE;
 
     private PainterMod.BrushShape shape = PainterMod.BrushShape.SQUARE;
     private PainterMod.BrushMode mode = PainterMod.BrushMode.RANDOMIZE;
@@ -76,6 +78,7 @@ public class PaintbrushScreen extends Screen {
     private WeightSlider slider;
     private EditBox weightBox;
     private boolean syncing = false;
+    private boolean draggingScrollbar = false;
 
     private record PickEntry(Block block, ItemStack icon, String id, String search) {}
     private static List<PickEntry> ALL;
@@ -107,9 +110,12 @@ public class PaintbrushScreen extends Screen {
         this.gridX = leftPos + 14;
         this.gridY = topPos + 34;
         this.pickerX = leftPos + 150;
-        this.pickerY = topPos + 38;
-        this.palStripY = topPos + 174;
-        this.maskStripY = topPos + 236;
+        this.pickerY = topPos + 38;               // picker: 38 -> 138
+        this.selCountY = topPos + 158;             // "N sel" indicator: 158 -> 166
+        this.palLabelY = topPos + 168;             // "Palette" label: 168 -> 176
+        this.palStripY = topPos + 178;             // palette icons + %: 178 -> 206
+        this.maskLabelY = topPos + 228;            // "Mask" label: 228 -> 236
+        this.maskStripY = topPos + 238;            // mask icons: 238 -> 258
 
         ItemStack brush = this.minecraft.player.getMainHandItem();
         if (!brush.is(ModItems.PAINTBRUSH.get())) { this.onClose(); return; }
@@ -134,6 +140,7 @@ public class PaintbrushScreen extends Screen {
             if (data != null) data.weights().forEach((block, weight) ->
                     mask.add(new IconEntry(BuiltInRegistries.BLOCK.getKey(block).toString(), new ItemStack(block))));
         }
+        this.maskMode = BrushData.getMaskMode(brush, PainterMod.MaskMode.INCLUDE);
 
         // ---- widgets ----
         this.searchBox = new EditBox(this.font, pickerX, topPos + 18, PCOLS * CELL - 6, 16, Component.literal("Search"));
@@ -141,26 +148,30 @@ public class PaintbrushScreen extends Screen {
         this.searchBox.setResponder(this::updateFilter);
         addRenderableWidget(this.searchBox);
 
+        // ---- left column: mode / size / shape / grid ops / active paint block ----
         addRenderableWidget(Button.builder(modeLabel(), b -> toggleMode((Button) b)).bounds(gridX, topPos + 140, 120, 18).build());
         addRenderableWidget(Button.builder(Component.literal("-"), b -> changeSize(-1)).bounds(gridX + 44, topPos + 162, 16, 16).build());
         addRenderableWidget(Button.builder(Component.literal("+"), b -> changeSize(1)).bounds(gridX + 80, topPos + 162, 16, 16).build());
         addRenderableWidget(Button.builder(shapeLabel(), b -> cycleShape((Button) b)).bounds(gridX, topPos + 184, 120, 18).build());
         addRenderableWidget(Button.builder(Component.literal("Clear grid"), b -> clearGrid()).bounds(gridX, topPos + 206, 120, 18).build());
 
-        // picker -> palette / mask add
+        // ---- right column: picker add buttons ----
         addRenderableWidget(Button.builder(Component.literal("+ Palette"), b -> addSelectionToPalette()).bounds(pickerX, topPos + 142, 72, 16).build());
         addRenderableWidget(Button.builder(Component.literal("+ Mask"), b -> addSelectionToMask()).bounds(pickerX + 76, topPos + 142, 60, 16).build());
 
-        // palette remove + weight controls
-        addRenderableWidget(Button.builder(Component.literal("Remove"), b -> removeSelectedPalette()).bounds(pickerX + 118, topPos + 160, 44, 14).build());
-        this.slider = new WeightSlider(pickerX, topPos + 202, 116, 16);
+        // ---- palette row: Remove + weight slider + numeric box (below the strip+labels) ----
+        int palControlY = palStripY + 30; // strip (18) + %-text (~8) + gap
+        addRenderableWidget(Button.builder(Component.literal("Remove"), b -> removeSelectedPalette()).bounds(pickerX + 118, palControlY, 44, 16).build());
+        this.slider = new WeightSlider(pickerX, palControlY, 112, 16);
         addRenderableWidget(this.slider);
-        this.weightBox = new EditBox(this.font, pickerX + 120, topPos + 202, 34, 16, Component.literal("%"));
+        this.weightBox = new EditBox(this.font, pickerX + 116, palControlY, 34, 16, Component.literal("%"));
         this.weightBox.setResponder(this::onWeightTyped);
         addRenderableWidget(this.weightBox);
 
-        // mask remove
-        addRenderableWidget(Button.builder(Component.literal("Remove"), b -> removeSelectedMask()).bounds(pickerX + 118, topPos + 222, 44, 14).build());
+        // ---- mask row: Remove + Include/Exclude toggle (below the strip) ----
+        int maskControlY = maskStripY + 22;
+        addRenderableWidget(Button.builder(Component.literal("Remove"), b -> removeSelectedMask()).bounds(pickerX, maskControlY, 44, 16).build());
+        addRenderableWidget(Button.builder(maskModeLabel(), b -> toggleMaskMode((Button) b)).bounds(pickerX + 48, maskControlY, 114, 16).build());
 
         addRenderableWidget(Button.builder(Component.literal("Apply & Close"), b -> apply()).bounds(leftPos + IMG_W - 114, topPos + IMG_H - 24, 104, 18).build());
 
@@ -215,6 +226,15 @@ public class PaintbrushScreen extends Screen {
     private void toggleMode(Button b) {
         mode = (mode == PainterMod.BrushMode.RANDOMIZE) ? PainterMod.BrushMode.CUSTOM : PainterMod.BrushMode.RANDOMIZE;
         b.setMessage(modeLabel());
+    }
+
+    private Component maskModeLabel() {
+        return Component.literal(maskMode == PainterMod.MaskMode.INCLUDE ? "Mask: Include" : "Mask: Exclude");
+    }
+
+    private void toggleMaskMode(Button b) {
+        maskMode = (maskMode == PainterMod.MaskMode.INCLUDE) ? PainterMod.MaskMode.EXCLUDE : PainterMod.MaskMode.INCLUDE;
+        b.setMessage(maskModeLabel());
     }
 
     // ---- palette ----
@@ -352,7 +372,7 @@ public class PaintbrushScreen extends Screen {
         for (PalEntry e : palette) { palIds.add(e.id); palWeights.add(e.weight); }
         List<String> maskIds = new ArrayList<>();
         for (IconEntry e : mask) maskIds.add(e.id());
-        PainterNetwork.CHANNEL.sendToServer(new BrushConfigPacket(size, shape.name(), mode.name(), grid, palIds, palWeights, maskIds));
+        PainterNetwork.CHANNEL.sendToServer(new BrushConfigPacket(size, shape.name(), mode.name(), grid, palIds, palWeights, maskIds, maskMode.name()));
         this.onClose();
     }
 
@@ -443,10 +463,10 @@ public class PaintbrushScreen extends Screen {
             g.fill(barX, thumbY, barX + 4, thumbY + thumbH, 0xFF5A5478);
         }
         if (!pickerSelection.isEmpty())
-            g.drawString(this.font, pickerSelection.size() + " sel", pickerX + 140, topPos + 145, 0xF5C542, false);
+            g.drawString(this.font, pickerSelection.size() + " selected", pickerX, selCountY, 0xF5C542, false);
 
         // palette
-        g.drawString(this.font, "Palette", pickerX, topPos + 162, 0xA0A0B0, false);
+        g.drawString(this.font, "Palette (=100%)", pickerX, palLabelY, 0xA0A0B0, false);
         for (int i = 0; i < palette.size(); i++) {
             int cx = pickerX + i * CELL, cy = palStripY;
             if (cx + SLOT > leftPos + IMG_W - 8) break;
@@ -460,7 +480,7 @@ public class PaintbrushScreen extends Screen {
         if (palette.isEmpty()) g.drawString(this.font, "§8(select blocks, then + Palette)", pickerX, palStripY + 4, 0x808080, false);
 
         // mask
-        g.drawString(this.font, "Mask", pickerX, topPos + 224, 0xA0A0B0, false);
+        g.drawString(this.font, "Mask", pickerX, maskLabelY, 0xA0A0B0, false);
         for (int i = 0; i < mask.size(); i++) {
             int cx = pickerX + i * CELL, cy = maskStripY;
             if (cx + SLOT > leftPos + IMG_W - 8) break;
@@ -480,9 +500,28 @@ public class PaintbrushScreen extends Screen {
         return s.length() <= max ? s : s.substring(0, max - 1) + "..";
     }
 
+    private int scrollbarX() { return pickerX + PCOLS * CELL; }
+    private int scrollbarTop() { return pickerY; }
+    private int scrollbarHeight() { return PROWS * CELL - 2; }
+
+    /** Jumps the scroll position to wherever the bar was clicked/dragged to. */
+    private void scrollToMouseY(double mouseY) {
+        int maxS = maxScroll();
+        if (maxS <= 0) return;
+        double frac = (mouseY - scrollbarTop()) / (double) scrollbarHeight();
+        scroll = Mth.clamp((int) Math.round(frac * maxS), 0, maxS);
+    }
+
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
         if (super.mouseClicked(mouseX, mouseY, button)) return true;
+
+        // scrollbar: click track or thumb to jump, and start a drag
+        if (button == 0 && inBox(mouseX, mouseY, scrollbarX(), scrollbarTop(), 6, scrollbarHeight())) {
+            draggingScrollbar = true;
+            scrollToMouseY(mouseY);
+            return true;
+        }
 
         // grid (custom mode only)
         if (mode == PainterMod.BrushMode.CUSTOM) {
@@ -523,6 +562,21 @@ public class PaintbrushScreen extends Screen {
             }
         }
         return false;
+    }
+
+    @Override
+    public boolean mouseDragged(double mouseX, double mouseY, int button, double dragX, double dragY) {
+        if (draggingScrollbar && button == 0) {
+            scrollToMouseY(mouseY);
+            return true;
+        }
+        return super.mouseDragged(mouseX, mouseY, button, dragX, dragY);
+    }
+
+    @Override
+    public boolean mouseReleased(double mouseX, double mouseY, int button) {
+        if (button == 0) draggingScrollbar = false;
+        return super.mouseReleased(mouseX, mouseY, button);
     }
 
     @Override

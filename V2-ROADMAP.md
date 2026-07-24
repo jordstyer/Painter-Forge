@@ -82,7 +82,23 @@ Data model (stored in ItemStack NBT via `BrushData`):
       the grid dims in Randomize mode and outside the current shape.
 - [x] **Layout reflow** to remove the overlapping labels/controls.
 
-Remaining from the user: "a few more fixes" to be addressed next.
+## Feedback round 3 (scrollbar, modded blocks, negative mask)
+
+- [x] **Draggable scrollbar.** Click-and-drag the thumb/track to scroll the block
+      picker (click also jumps to that position); wheel-scroll still works too.
+- [x] **Modded blocks.** Confirmed already included — the picker iterates
+      `BuiltInRegistries.BLOCK`, the actual runtime registry every mod's
+      `DeferredRegister` populates, so modded blocks show up and are searchable
+      by their `modid:block_name` id. No code change needed.
+- [x] **Negative mask.** New `MaskMode {INCLUDE, EXCLUDE}` (`BrushData`/packet/
+      `PainterLogic` guard). GUI has a **Mask: Include/Exclude** toggle button;
+      command equivalent `/paintbrush mask mode <include|exclude>`. EXCLUDE paints
+      over anything *except* the listed blocks.
+- [x] Also fixed the GUI's label/button overlaps flagged from the layout
+      (Palette/Mask labels were sitting under their Remove buttons) as part of
+      reflowing the right column for the new mask-mode control.
+
+User: "3 more things and then we can call version 2 complete" — this closes that list.
 
 ## Notes / open questions
 

@@ -78,7 +78,8 @@ public final class PainterClientEvents {
         if (BrushData.hasMask(stack)) {
             PaletteData maskData = BrushData.getMask(stack);
             if (maskData != null && !maskData.weights().isEmpty()) {
-                lines.add(Component.literal("§d🎯 Mask:"));
+                PainterMod.MaskMode maskMode = BrushData.getMaskMode(stack, PainterMod.MaskMode.INCLUDE);
+                lines.add(Component.literal("§d🎯 Mask §7(" + maskMode.name() + "):"));
                 String blockNames = maskData.weights().keySet().stream()
                         .map(block -> block.getName().getString())
                         .collect(Collectors.joining(", "));

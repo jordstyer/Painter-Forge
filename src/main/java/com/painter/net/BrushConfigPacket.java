@@ -33,9 +33,10 @@ public class BrushConfigPacket {
     private final List<String> palIds;
     private final List<Integer> palWeights;
     private final List<String> maskIds;
+    private final String maskMode;
 
     public BrushConfigPacket(int size, String shape, String mode, List<String> cells,
-                             List<String> palIds, List<Integer> palWeights, List<String> maskIds) {
+                             List<String> palIds, List<Integer> palWeights, List<String> maskIds, String maskMode) {
         this.size = size;
         this.shape = shape;
         this.mode = mode;
@@ -43,6 +44,7 @@ public class BrushConfigPacket {
         this.palIds = palIds;
         this.palWeights = palWeights;
         this.maskIds = maskIds;
+        this.maskMode = maskMode;
     }
 
     public static void encode(BrushConfigPacket m, FriendlyByteBuf buf) {
@@ -58,6 +60,7 @@ public class BrushConfigPacket {
         }
         buf.writeVarInt(m.maskIds.size());
         for (String s : m.maskIds) buf.writeUtf(s == null ? "" : s, 256);
+        buf.writeUtf(m.maskMode == null ? "INCLUDE" : m.maskMode, 64);
     }
 
     public static BrushConfigPacket decode(FriendlyByteBuf buf) {
@@ -77,7 +80,8 @@ public class BrushConfigPacket {
         int maskCount = Math.max(0, Math.min(buf.readVarInt(), 256));
         List<String> maskIds = new ArrayList<>(maskCount);
         for (int i = 0; i < maskCount; i++) maskIds.add(buf.readUtf(256));
-        return new BrushConfigPacket(size, shape, mode, cells, palIds, palWeights, maskIds);
+        String maskMode = buf.readUtf(64);
+        return new BrushConfigPacket(size, shape, mode, cells, palIds, palWeights, maskIds, maskMode);
     }
 
     public static void handle(BrushConfigPacket m, Supplier<NetworkEvent.Context> ctx) {
@@ -125,6 +129,10 @@ public class BrushConfigPacket {
             }
             if (mask.isEmpty()) BrushData.removeMask(stack);
             else BrushData.setMask(stack, new PaletteData(mask));
+            try {
+                BrushData.setMaskMode(stack, PainterMod.MaskMode.valueOf(m.maskMode));
+            } catch (IllegalArgumentException ignored) {
+            }
         });
         context.setPacketHandled(true);
     }

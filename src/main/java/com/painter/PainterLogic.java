@@ -139,11 +139,15 @@ public class PainterLogic {
                                     Set<Block> missingBlocks, List<UndoManager.Change> changes) {
         BlockState oldState = world.getBlockState(pos);
 
-        // 1. MASK GUARD: If a mask is set, only replace blocks in the mask.
+        // 1. MASK GUARD: INCLUDE = only replace listed blocks; EXCLUDE = replace anything but them.
         if (BrushData.hasMask(brush)) {
             PaletteData mask = BrushData.getMask(brush);
-            if (mask != null && !mask.weights().containsKey(oldState.getBlock())) {
-                return null;
+            if (mask != null) {
+                boolean listed = mask.weights().containsKey(oldState.getBlock());
+                boolean exclude = BrushData.getMaskMode(brush, PainterMod.MaskMode.INCLUDE) == PainterMod.MaskMode.EXCLUDE;
+                if (exclude ? listed : !listed) {
+                    return null;
+                }
             }
         }
 

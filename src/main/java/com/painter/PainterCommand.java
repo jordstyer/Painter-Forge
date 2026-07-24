@@ -314,6 +314,10 @@ public class PainterCommand {
                                     return 1;
                                 })
                         )
+                        .then(Commands.literal("mode")
+                                .then(Commands.literal("include").executes(context -> setMaskMode(context.getSource().getPlayer(), PainterMod.MaskMode.INCLUDE)))
+                                .then(Commands.literal("exclude").executes(context -> setMaskMode(context.getSource().getPlayer(), PainterMod.MaskMode.EXCLUDE)))
+                        )
                 )
                 .then(Commands.literal("undo")
                         .executes(context -> {
@@ -350,6 +354,7 @@ public class PainterCommand {
         source.sendSuccess(() -> Component.literal("§7Craft a §fPaintbrush §7(brush + white dye) and hold it to configure."), false);
         source.sendSuccess(() -> Component.literal("§e/paintbrush set <pattern> §7- Define blocks (e.g. 50 stone, 50 grass)"), false);
         source.sendSuccess(() -> Component.literal("§e/paintbrush mask <blocks> §7- Set blocks to target (e.g. stone,dirt)"), false);
+        source.sendSuccess(() -> Component.literal("§e/paintbrush mask mode <include|exclude> §7- Only these, or all but these"), false);
         source.sendSuccess(() -> Component.literal("§e/paintbrush size <1-5> §7- Adjust brush radius"), false);
         source.sendSuccess(() -> Component.literal("§e/paintbrush shape <type> §7- Square, Circle, or Diamond"), false);
         source.sendSuccess(() -> Component.literal("§e/paintbrush mode <type> §7- Randomize or Custom"), false);
@@ -376,6 +381,15 @@ public class PainterCommand {
         if (stack == null) return 0;
         BrushData.setMode(stack, mode);
         player.displayClientMessage(Component.literal("§bBrush mode: §f" + mode.name()), true);
+        return 1;
+    }
+
+    private static int setMaskMode(ServerPlayer player, PainterMod.MaskMode maskMode) {
+        if (player == null) return 0;
+        ItemStack stack = requireBrush(player);
+        if (stack == null) return 0;
+        BrushData.setMaskMode(stack, maskMode);
+        player.displayClientMessage(Component.literal("§bMask mode: §f" + maskMode.name()), true);
         return 1;
     }
 

@@ -26,6 +26,7 @@ public final class BrushData {
     private static final String SIZE = "size";
     private static final String SHAPE = "shape";
     private static final String MODE = "mode";
+    private static final String MASK_MODE = "maskMode";
     private static final String PROFILE = "profile";
     private static final String GRID = "grid";
     private static final String GRID_SIZE = "gridSize";
@@ -98,6 +99,20 @@ public final class BrushData {
         CompoundTag r = rootOrNull(stack);
         if (r != null) r.remove(MASK);
         pruneIfEmpty(stack);
+    }
+
+    public static PainterMod.MaskMode getMaskMode(ItemStack stack, PainterMod.MaskMode fallback) {
+        CompoundTag r = rootOrNull(stack);
+        if (r == null || !r.contains(MASK_MODE, Tag.TAG_STRING)) return fallback;
+        try {
+            return PainterMod.MaskMode.valueOf(r.getString(MASK_MODE).toUpperCase());
+        } catch (IllegalArgumentException e) {
+            return fallback;
+        }
+    }
+
+    public static void setMaskMode(ItemStack stack, PainterMod.MaskMode mode) {
+        root(stack).putString(MASK_MODE, mode.name());
     }
 
     // --- Size ---

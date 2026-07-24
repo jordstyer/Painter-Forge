@@ -34,6 +34,17 @@ public class PainterMod {
         RANDOMIZE, CUSTOM
     }
 
+    /**
+     * How the mask filters paintable blocks.
+     * <ul>
+     *   <li>{@code INCLUDE} — only the listed blocks can be painted over (original behavior).</li>
+     *   <li>{@code EXCLUDE} — every block can be painted over <em>except</em> the listed ones.</li>
+     * </ul>
+     */
+    public enum MaskMode {
+        INCLUDE, EXCLUDE
+    }
+
     public PainterMod() {
         IEventBus modEventBus = FMLJavaModLoadingContext.get().getModEventBus();
 
