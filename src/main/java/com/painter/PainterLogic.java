@@ -36,8 +36,11 @@ import net.minecraft.world.level.block.WallBlock;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.Property;
 
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -55,6 +58,7 @@ public class PainterLogic {
 
         int size = BrushData.getSize(brush, 1);
         PainterMod.BrushShape shape = BrushData.getShape(brush, PainterMod.BrushShape.SQUARE);
+        PainterMod.PatternMode pattern = BrushData.getPattern(brush, PainterMod.PatternMode.RANDOM);
 
         Map<Item, Integer> returnedItems = new HashMap<>();
         Set<Block> missingBlocks = new HashSet<>();
@@ -70,7 +74,7 @@ public class PainterLogic {
                 if (!isInShape(a, b, size, shape)) continue;
 
                 BlockPos targetPos = getRelativePos(centerPos, side, a, b);
-                Item item = paintSingle(world, targetPos, player, palette, brush, missingBlocks);
+                Item item = paintSingle(world, targetPos, player, palette, brush, pattern, missingBlocks);
 
                 if (item != null) {
                     changedCount++;
@@ -123,7 +127,7 @@ public class PainterLogic {
     }
 
     private static Item paintSingle(Level world, BlockPos pos, Player player, PaletteData palette,
-                                    ItemStack brush, Set<Block> missingBlocks) {
+                                    ItemStack brush, PainterMod.PatternMode pattern, Set<Block> missingBlocks) {
         BlockState oldState = world.getBlockState(pos);
 
         // 1. MASK GUARD: If a mask is set, only replace blocks in the mask.
@@ -140,7 +144,7 @@ public class PainterLogic {
         // 3. UNBREAKABLE GUARD: Prevent painting Bedrock, End Portals, etc.
         if (oldState.getDestroySpeed(world, pos) < 0.0F) return null;
 
-        Block target = pickRandom(palette.weights(), world.random);
+        Block target = pickBlock(palette, pos, pattern, world.random);
         if (target == null || oldState.is(target) || !isCompatible(oldState, target)) return null;
 
         if (!player.isCreative() && !consumeItem(player, target.asItem())) {
@@ -182,6 +186,39 @@ public class PainterLogic {
 
     private static <T extends Comparable<T>> BlockState copyProp(BlockState s1, BlockState s2, Property<T> p) {
         return s2.setValue(p, s1.getValue(p));
+    }
+
+    /**
+     * Chooses the block to place at {@code pos} according to the pattern mode.
+     * RANDOM uses the weighted draw; the other modes are deterministic functions of
+     * the world coordinates, so a pattern tiles seamlessly no matter where painting starts.
+     */
+    private static Block pickBlock(PaletteData palette, BlockPos pos, PainterMod.PatternMode pattern, RandomSource random) {
+        Map<Block, Integer> weights = palette.weights();
+        if (weights.isEmpty()) return null;
+
+        switch (pattern) {
+            case CHECKERBOARD -> {
+                List<Block> blocks = orderedBlocks(weights);
+                int idx = Math.floorMod(pos.getX() + pos.getY() + pos.getZ(), blocks.size());
+                return blocks.get(idx);
+            }
+            case STRIPES -> {
+                List<Block> blocks = orderedBlocks(weights);
+                int idx = Math.floorMod(pos.getY(), blocks.size());
+                return blocks.get(idx);
+            }
+            default -> {
+                return pickRandom(weights, random);
+            }
+        }
+    }
+
+    /** Palette blocks in a stable order (by registry id) so patterns are deterministic. */
+    private static List<Block> orderedBlocks(Map<Block, Integer> weights) {
+        List<Block> list = new ArrayList<>(weights.keySet());
+        list.sort(Comparator.comparing(b -> BuiltInRegistries.BLOCK.getKey(b).toString()));
+        return list;
     }
 
     private static Block pickRandom(Map<Block, Integer> weights, RandomSource random) {

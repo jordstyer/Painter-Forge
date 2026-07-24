@@ -162,6 +162,11 @@ public class PainterCommand {
                         .then(Commands.literal("circle").executes(context -> setShape(context.getSource().getPlayer(), PainterMod.BrushShape.CIRCLE)))
                         .then(Commands.literal("diamond").executes(context -> setShape(context.getSource().getPlayer(), PainterMod.BrushShape.DIAMOND)))
                 )
+                .then(Commands.literal("pattern")
+                        .then(Commands.literal("random").executes(context -> setPattern(context.getSource().getPlayer(), PainterMod.PatternMode.RANDOM)))
+                        .then(Commands.literal("checkerboard").executes(context -> setPattern(context.getSource().getPlayer(), PainterMod.PatternMode.CHECKERBOARD)))
+                        .then(Commands.literal("stripes").executes(context -> setPattern(context.getSource().getPlayer(), PainterMod.PatternMode.STRIPES)))
+                )
                 .then(Commands.literal("set")
                         .then(Commands.argument("pattern", StringArgumentType.greedyString())
                                 .suggests(SUGGEST_BLOCKS)
@@ -238,6 +243,7 @@ public class PainterCommand {
         source.sendSuccess(() -> Component.literal("§e/paintbrush mask <blocks> §7- Set blocks to target (e.g. stone,dirt)"), false);
         source.sendSuccess(() -> Component.literal("§e/paintbrush size <1-5> §7- Adjust brush radius"), false);
         source.sendSuccess(() -> Component.literal("§e/paintbrush shape <type> §7- Square, Circle, or Diamond"), false);
+        source.sendSuccess(() -> Component.literal("§e/paintbrush pattern <type> §7- Random, Checkerboard, or Stripes"), false);
         source.sendSuccess(() -> Component.literal("§e/paintbrush save <name> §7- Save current settings to a profile"), false);
         source.sendSuccess(() -> Component.literal("§e/paintbrush load <name> §7- Load a saved profile"), false);
         source.sendSuccess(() -> Component.literal("§e/paintbrush clear §7- Wipe current brush settings"), false);
@@ -250,6 +256,15 @@ public class PainterCommand {
         if (stack == null) return 0;
         BrushData.setShape(stack, shape);
         player.displayClientMessage(Component.literal("§bBrush shape: §f" + shape.name()), true);
+        return 1;
+    }
+
+    private static int setPattern(ServerPlayer player, PainterMod.PatternMode pattern) {
+        if (player == null) return 0;
+        ItemStack stack = requireBrush(player);
+        if (stack == null) return 0;
+        BrushData.setPattern(stack, pattern);
+        player.displayClientMessage(Component.literal("§bBrush pattern: §f" + pattern.name()), true);
         return 1;
     }
 

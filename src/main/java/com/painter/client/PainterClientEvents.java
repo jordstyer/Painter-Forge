@@ -58,7 +58,9 @@ public final class PainterClientEvents {
         // 2. Display brush settings
         int size = BrushData.getSize(stack, 1);
         PainterMod.BrushShape shape = BrushData.getShape(stack, PainterMod.BrushShape.SQUARE);
+        PainterMod.PatternMode pattern = BrushData.getPattern(stack, PainterMod.PatternMode.RANDOM);
         lines.add(Component.literal("§b📐 Size: " + size + "x" + size + " §7(" + shape.name() + ")"));
+        lines.add(Component.literal("§b🎲 Pattern: §7" + pattern.name()));
 
         // 3. Display Mask if it exists
         if (BrushData.hasMask(stack)) {

@@ -19,6 +19,7 @@ public final class BrushData {
     private static final String MASK = "mask";
     private static final String SIZE = "size";
     private static final String SHAPE = "shape";
+    private static final String PATTERN = "pattern";
     private static final String PROFILE = "profile";
 
     private BrushData() {
@@ -121,6 +122,22 @@ public final class BrushData {
 
     public static void setShape(ItemStack stack, PainterMod.BrushShape shape) {
         root(stack).putString(SHAPE, shape.name());
+    }
+
+    // --- Pattern mode ---
+
+    public static PainterMod.PatternMode getPattern(ItemStack stack, PainterMod.PatternMode fallback) {
+        CompoundTag r = rootOrNull(stack);
+        if (r == null || !r.contains(PATTERN, Tag.TAG_STRING)) return fallback;
+        try {
+            return PainterMod.PatternMode.valueOf(r.getString(PATTERN).toUpperCase());
+        } catch (IllegalArgumentException e) {
+            return fallback;
+        }
+    }
+
+    public static void setPattern(ItemStack stack, PainterMod.PatternMode pattern) {
+        root(stack).putString(PATTERN, pattern.name());
     }
 
     // --- Active profile ---

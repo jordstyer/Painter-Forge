@@ -25,10 +25,12 @@ Data model (stored in ItemStack NBT via `BrushData`):
 - [x] **1. Custom Paintbrush item** — dedicated `painter:paintbrush`, no more
       vanilla-brush hijack. Painting/tooltip/outline/commands all key off it.
       *(done — commit after this doc)*
-- [ ] **2. Pattern modes (logic-only, command-driven).** Add `RANDOM` (current),
-      `CHECKERBOARD`, `STRIPES` to `PainterLogic`, chosen deterministically from
+- [x] **2. Pattern modes (logic-only, command-driven).** `RANDOM` (current),
+      `CHECKERBOARD`, `STRIPES` in `PainterLogic`, chosen deterministically from
       the target `BlockPos` so patterns tile seamlessly across a wall. Stored as
-      a `pattern` field on the brush. Quick, self-contained, testable via chat.
+      a `pattern` field on the brush. Set via `/paintbrush pattern <type>`; shown
+      in the tooltip. Non-random modes ignore weights and cycle the palette blocks
+      (ordered by registry id). *(done)*
 - [ ] **3. The grid itself.** Introduce the N×N cell grid in `BrushData` +
       `PainterLogic` (cell = block or RANDOM). Still command-driven for now
       (e.g. `/paintbrush cell <x> <y> <block|random>`), so we can validate the

@@ -21,6 +21,20 @@ public class PainterMod {
         SQUARE, CIRCLE, DIAMOND
     }
 
+    /**
+     * How a block is chosen for each painted position.
+     * <ul>
+     *   <li>{@code RANDOM} — weighted random draw from the palette (the original behavior).</li>
+     *   <li>{@code CHECKERBOARD} — deterministic by {@code (x+y+z)} across the palette, so it tiles.</li>
+     *   <li>{@code STRIPES} — deterministic horizontal bands by {@code y} across the palette.</li>
+     * </ul>
+     * Non-random modes ignore the palette weights and just cycle through the palette blocks
+     * (ordered by registry id), so placement is seamless regardless of where you click.
+     */
+    public enum PatternMode {
+        RANDOM, CHECKERBOARD, STRIPES
+    }
+
     public PainterMod() {
         IEventBus modEventBus = FMLJavaModLoadingContext.get().getModEventBus();
 
