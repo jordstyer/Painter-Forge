@@ -316,6 +316,19 @@ public class PainterCommand {
                                 })
                         )
                 )
+                .then(Commands.literal("undo")
+                        .executes(context -> {
+                            ServerPlayer player = context.getSource().getPlayer();
+                            if (player == null) return 0;
+                            int reverted = UndoManager.undo(player);
+                            if (reverted > 0) {
+                                player.displayClientMessage(Component.literal("§aUndid §f" + reverted + "§a block(s)."), true);
+                            } else {
+                                player.displayClientMessage(Component.literal("§eNothing to undo."), true);
+                            }
+                            return 1;
+                        })
+                )
                 .then(Commands.literal("clear")
                         .executes(context -> {
                             ServerPlayer player = context.getSource().getPlayer();
@@ -344,6 +357,7 @@ public class PainterCommand {
         source.sendSuccess(() -> Component.literal("§e/paintbrush grid ... §7- Per-cell template: set/random <row> <col>, fill, clear"), false);
         source.sendSuccess(() -> Component.literal("§e/paintbrush save <name> §7- Save current settings to a profile"), false);
         source.sendSuccess(() -> Component.literal("§e/paintbrush load <name> §7- Load a saved profile"), false);
+        source.sendSuccess(() -> Component.literal("§e/paintbrush undo §7- Revert your last paint"), false);
         source.sendSuccess(() -> Component.literal("§e/paintbrush clear §7- Wipe current brush settings"), false);
         source.sendSuccess(() -> Component.literal("§6§l========================"), false);
     }

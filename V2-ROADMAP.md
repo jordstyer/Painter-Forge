@@ -47,9 +47,11 @@ Data model (stored in ItemStack NBT via `BrushData`):
       `BrushConfigPacket` (grid + palette + pattern) over a Forge `SimpleChannel` →
       server writes it to the held brush (item NBT is server-authoritative).
       **Still needs in-game playtesting** — layout/rendering can't be compile-verified.
-- [ ] **5. Undo (nice-to-have).** Remember the last N painted blocks per player;
-      `/paintbrush undo` or a GUI button reverts them. Makes experimenting with
-      patterns non-punishing since painting consumes inventory blocks.
+- [x] **5. Undo.** Server-side single-level undo: `/paintbrush undo` reverts your
+      last paint. Restores the block states (skipping any cell changed since) and
+      best-effort reverses the item economy — refunds the placed blocks, removes the
+      blocks painting handed back. In creative it just restores blocks. Not persisted
+      across a server restart. *(done)*
 
 ## Notes / open questions
 

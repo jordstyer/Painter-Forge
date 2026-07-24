@@ -62,6 +62,7 @@ public class PainterLogic {
 
         Map<Item, Integer> returnedItems = new HashMap<>();
         Set<Block> missingBlocks = new HashSet<>();
+        List<UndoManager.Change> changes = new ArrayList<>();
         int changedCount = 0;
         BlockState lastState = null;
 
@@ -76,7 +77,7 @@ public class PainterLogic {
                 BlockPos targetPos = getRelativePos(centerPos, side, a, b);
                 // Grid cell for this footprint position (null = RANDOM -> use palette/pattern).
                 Block fixedBlock = BrushData.getCell(brush, size, a - min, b - min);
-                Item item = paintSingle(world, targetPos, player, palette, brush, pattern, fixedBlock, missingBlocks);
+                Item item = paintSingle(world, targetPos, player, palette, brush, pattern, fixedBlock, missingBlocks, changes);
 
                 if (item != null) {
                     changedCount++;
@@ -94,6 +95,10 @@ public class PainterLogic {
                     .map(block -> block.getName().getString())
                     .collect(Collectors.joining(", "));
             player.displayClientMessage(Component.literal("§cOut of stock: §f" + missingBlockNames), true);
+        }
+
+        if (changedCount > 0 && player instanceof ServerPlayer sp) {
+            UndoManager.record(sp, changes);
         }
 
         if (changedCount > 0 && lastState != null) {
@@ -130,7 +135,7 @@ public class PainterLogic {
 
     private static Item paintSingle(Level world, BlockPos pos, Player player, PaletteData palette,
                                     ItemStack brush, PainterMod.PatternMode pattern, Block fixedBlock,
-                                    Set<Block> missingBlocks) {
+                                    Set<Block> missingBlocks, List<UndoManager.Change> changes) {
         BlockState oldState = world.getBlockState(pos);
 
         // 1. MASK GUARD: If a mask is set, only replace blocks in the mask.
@@ -162,8 +167,10 @@ public class PainterLogic {
         }
         world.setBlock(pos, newState, 2);
 
-        // Return the item evaluated by our anti-cheat logic
-        return getReturnedItem(oldState);
+        // Record for undo (immutable pos) and return the item from our anti-cheat logic.
+        Item returned = getReturnedItem(oldState);
+        changes.add(new UndoManager.Change(pos.immutable(), oldState, target, returned));
+        return returned;
     }
 
     private static Item getReturnedItem(BlockState state) {
