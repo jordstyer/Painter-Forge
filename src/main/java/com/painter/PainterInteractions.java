@@ -51,9 +51,10 @@ public final class PainterInteractions {
         if (world.isClientSide()) return;
 
         int size = BrushData.getSize(stack, 1);
+        PainterMod.BrushMode mode = BrushData.getMode(stack, PainterMod.BrushMode.RANDOMIZE);
         PaletteData palette = BrushData.hasPalette(stack) ? BrushData.getPalette(stack) : new PaletteData(Map.of());
         boolean hasPalette = palette != null && !palette.weights().isEmpty();
-        boolean hasGrid = BrushData.hasGridCells(stack, size);
+        boolean hasGrid = mode == PainterMod.BrushMode.CUSTOM && BrushData.hasGridCells(stack, size);
         if (!hasPalette && !hasGrid) return;
 
         BlockHitResult hit = event.getHitVec();

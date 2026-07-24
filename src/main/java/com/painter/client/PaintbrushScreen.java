@@ -21,32 +21,35 @@ import net.minecraft.world.level.block.Block;
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 /**
- * Full configuration GUI for the Paintbrush (opened with Shift + right-click).
- * Everything is editable here: size, shape, pattern, the grid template, the weighted
- * palette (normalized to 100%), and the mask. "Apply" ships it all to the server via
- * {@link BrushConfigPacket}.
+ * Full configuration GUI for the Paintbrush (Shift + right-click to open).
+ *
+ * <p>Flow: multi-select blocks in the picker (they stay highlighted), then press
+ * <b>+ Palette</b> or <b>+ Mask</b> to add them; blocks already in the palette/mask
+ * grey out (differently). Select a palette entry to make it the active paint block —
+ * in <b>Custom</b> mode, click grid cells to stamp it (right-click a cell = random).
+ * In <b>Randomize</b> mode the grid is ignored and every paint draws fresh from the
+ * palette. "Apply" ships it all to the server.</p>
  */
 public class PaintbrushScreen extends Screen {
 
     private static final int IMG_W = 340;
-    private static final int IMG_H = 300;
+    private static final int IMG_H = 286;
     private static final int CELL = 20;
     private static final int SLOT = 18;
     private static final int PCOLS = 8;
-    private static final int PROWS = 6;
+    private static final int PROWS = 5;
 
     private int leftPos, topPos, gridX, gridY, pickerX, pickerY, palStripY, maskStripY;
-
-    private enum PickTarget { CELL, PALETTE, MASK }
 
     // grid
     private int size = 1;
     private String[] cells = new String[0];
-    private int selectedCell = -1;
 
     // palette (weights normalized to sum 100)
     private static final class PalEntry {
@@ -56,18 +59,19 @@ public class PaintbrushScreen extends Screen {
     private final List<PalEntry> palette = new ArrayList<>();
     private int selectedPal = -1;
 
-    // mask (a set, no weights)
+    // mask (a set)
     private record IconEntry(String id, ItemStack icon) {}
     private final List<IconEntry> mask = new ArrayList<>();
     private int selectedMask = -1;
 
     private PainterMod.BrushShape shape = PainterMod.BrushShape.SQUARE;
-    private PainterMod.PatternMode pattern = PainterMod.PatternMode.RANDOM;
-    private PickTarget pickTarget = PickTarget.CELL;
+    private PainterMod.BrushMode mode = PainterMod.BrushMode.RANDOMIZE;
 
+    // picker
     private int scroll = 0;
     private EditBox searchBox;
     private List<PickEntry> filtered = new ArrayList<>();
+    private final Set<String> pickerSelection = new LinkedHashSet<>();
 
     private WeightSlider slider;
     private EditBox weightBox;
@@ -104,16 +108,15 @@ public class PaintbrushScreen extends Screen {
         this.gridY = topPos + 34;
         this.pickerX = leftPos + 150;
         this.pickerY = topPos + 38;
-        this.palStripY = topPos + 186;
-        this.maskStripY = topPos + 254;
+        this.palStripY = topPos + 174;
+        this.maskStripY = topPos + 236;
 
         ItemStack brush = this.minecraft.player.getMainHandItem();
         if (!brush.is(ModItems.PAINTBRUSH.get())) { this.onClose(); return; }
 
-        // Load everything from the brush
         this.size = Mth.clamp(BrushData.getSize(brush, 1), 1, 5);
         this.shape = BrushData.getShape(brush, PainterMod.BrushShape.SQUARE);
-        this.pattern = BrushData.getPattern(brush, PainterMod.PatternMode.RANDOM);
+        this.mode = BrushData.getMode(brush, PainterMod.BrushMode.RANDOMIZE);
         rebuildCells(brush);
 
         palette.clear();
@@ -138,28 +141,26 @@ public class PaintbrushScreen extends Screen {
         this.searchBox.setResponder(this::updateFilter);
         addRenderableWidget(this.searchBox);
 
-        // Size stepper
-        addRenderableWidget(Button.builder(Component.literal("-"), b -> changeSize(-1)).bounds(gridX + 32, topPos + 138, 16, 16).build());
-        addRenderableWidget(Button.builder(Component.literal("+"), b -> changeSize(1)).bounds(gridX + 66, topPos + 138, 16, 16).build());
-        // Shape / pattern
-        addRenderableWidget(Button.builder(shapeLabel(), b -> cycleShape((Button) b)).bounds(gridX, topPos + 158, 110, 18).build());
-        addRenderableWidget(Button.builder(patternLabel(), b -> cyclePattern((Button) b)).bounds(gridX, topPos + 178, 110, 18).build());
-        // Grid cell ops
-        addRenderableWidget(Button.builder(Component.literal("Set RANDOM"), b -> setSelectedRandom()).bounds(gridX, topPos + 198, 110, 18).build());
-        addRenderableWidget(Button.builder(Component.literal("Clear grid"), b -> clearGrid()).bounds(gridX, topPos + 218, 110, 18).build());
+        addRenderableWidget(Button.builder(modeLabel(), b -> toggleMode((Button) b)).bounds(gridX, topPos + 140, 120, 18).build());
+        addRenderableWidget(Button.builder(Component.literal("-"), b -> changeSize(-1)).bounds(gridX + 44, topPos + 162, 16, 16).build());
+        addRenderableWidget(Button.builder(Component.literal("+"), b -> changeSize(1)).bounds(gridX + 80, topPos + 162, 16, 16).build());
+        addRenderableWidget(Button.builder(shapeLabel(), b -> cycleShape((Button) b)).bounds(gridX, topPos + 184, 120, 18).build());
+        addRenderableWidget(Button.builder(Component.literal("Clear grid"), b -> clearGrid()).bounds(gridX, topPos + 206, 120, 18).build());
 
-        // Palette add/remove
-        addRenderableWidget(Button.builder(Component.literal("+ Add"), b -> pickTarget = PickTarget.PALETTE).bounds(pickerX + 50, topPos + 168, 44, 14).build());
-        addRenderableWidget(Button.builder(Component.literal("Remove"), b -> removeSelectedPalette()).bounds(pickerX + 96, topPos + 168, 54, 14).build());
-        // Palette weight slider + numeric
-        this.slider = new WeightSlider(pickerX, topPos + 214, 116, 16);
+        // picker -> palette / mask add
+        addRenderableWidget(Button.builder(Component.literal("+ Palette"), b -> addSelectionToPalette()).bounds(pickerX, topPos + 142, 72, 16).build());
+        addRenderableWidget(Button.builder(Component.literal("+ Mask"), b -> addSelectionToMask()).bounds(pickerX + 76, topPos + 142, 60, 16).build());
+
+        // palette remove + weight controls
+        addRenderableWidget(Button.builder(Component.literal("Remove"), b -> removeSelectedPalette()).bounds(pickerX + 118, topPos + 160, 44, 14).build());
+        this.slider = new WeightSlider(pickerX, topPos + 202, 116, 16);
         addRenderableWidget(this.slider);
-        this.weightBox = new EditBox(this.font, pickerX + 120, topPos + 214, 34, 16, Component.literal("%"));
+        this.weightBox = new EditBox(this.font, pickerX + 120, topPos + 202, 34, 16, Component.literal("%"));
         this.weightBox.setResponder(this::onWeightTyped);
         addRenderableWidget(this.weightBox);
-        // Mask add/remove
-        addRenderableWidget(Button.builder(Component.literal("+ Mask"), b -> pickTarget = PickTarget.MASK).bounds(pickerX + 40, topPos + 238, 48, 14).build());
-        addRenderableWidget(Button.builder(Component.literal("Remove"), b -> removeSelectedMask()).bounds(pickerX + 92, topPos + 238, 58, 14).build());
+
+        // mask remove
+        addRenderableWidget(Button.builder(Component.literal("Remove"), b -> removeSelectedMask()).bounds(pickerX + 118, topPos + 222, 44, 14).build());
 
         addRenderableWidget(Button.builder(Component.literal("Apply & Close"), b -> apply()).bounds(leftPos + IMG_W - 114, topPos + IMG_H - 24, 104, 18).build());
 
@@ -177,7 +178,7 @@ public class PaintbrushScreen extends Screen {
         }
     }
 
-    // ---- size / shape / pattern ----
+    // ---- size / shape / mode ----
 
     private void changeSize(int delta) {
         int newSize = Mth.clamp(size + delta, 1, 5);
@@ -187,12 +188,9 @@ public class PaintbrushScreen extends Screen {
         size = newSize;
         cells = new String[size * size];
         for (int i = 0; i < cells.length; i++) cells[i] = "";
-        for (int row = 0; row < Math.min(oldSize, size); row++) {
-            for (int col = 0; col < Math.min(oldSize, size); col++) {
+        for (int row = 0; row < Math.min(oldSize, size); row++)
+            for (int col = 0; col < Math.min(oldSize, size); col++)
                 cells[row * size + col] = old[row * oldSize + col];
-            }
-        }
-        selectedCell = -1;
     }
 
     private Component shapeLabel() {
@@ -210,19 +208,13 @@ public class PaintbrushScreen extends Screen {
         b.setMessage(shapeLabel());
     }
 
-    private Component patternLabel() {
-        return Component.literal("Pattern: " + switch (pattern) {
-            case RANDOM -> "Random"; case CHECKERBOARD -> "Checker"; case STRIPES -> "Stripes";
-        });
+    private Component modeLabel() {
+        return Component.literal("Mode: " + (mode == PainterMod.BrushMode.RANDOMIZE ? "Randomize" : "Custom"));
     }
 
-    private void cyclePattern(Button b) {
-        pattern = switch (pattern) {
-            case RANDOM -> PainterMod.PatternMode.CHECKERBOARD;
-            case CHECKERBOARD -> PainterMod.PatternMode.STRIPES;
-            case STRIPES -> PainterMod.PatternMode.RANDOM;
-        };
-        b.setMessage(patternLabel());
+    private void toggleMode(Button b) {
+        mode = (mode == PainterMod.BrushMode.RANDOMIZE) ? PainterMod.BrushMode.CUSTOM : PainterMod.BrushMode.RANDOMIZE;
+        b.setMessage(modeLabel());
     }
 
     // ---- palette ----
@@ -252,9 +244,8 @@ public class PaintbrushScreen extends Screen {
         for (int i = 0; i < n; i++) if (i != keep) sumOthers += palette.get(i).weight;
         palette.get(keep).weight = targetVal;
         if (sumOthers <= 0) {
-            int each = remaining / (n - 1), extra = remaining - each * (n - 1);
-            int k = 0;
-            for (int i = 0; i < n; i++) if (i != keep) { palette.get(i).weight = each + (k++ < extra ? 1 : 0); }
+            int each = remaining / (n - 1), extra = remaining - each * (n - 1), k = 0;
+            for (int i = 0; i < n; i++) if (i != keep) palette.get(i).weight = each + (k++ < extra ? 1 : 0);
         } else {
             int assigned = 0, last = -1;
             for (int i = 0; i < n; i++) if (i != keep) {
@@ -265,20 +256,21 @@ public class PaintbrushScreen extends Screen {
         }
     }
 
-    private void addToPalette(String id) {
-        for (PalEntry e : palette) if (e.id.equals(id)) return;
-        Block b = BuiltInRegistries.BLOCK.get(new ResourceLocation(id));
-        int temp = palette.isEmpty() ? 100 : Math.max(1, totalWeight() / palette.size());
-        palette.add(new PalEntry(id, temp, new ItemStack(b)));
-        normalizeAll();
-        selectedPal = palette.size() - 1;
-        refreshWeightControls();
+    private boolean isInPalette(String id) {
+        for (PalEntry e : palette) if (e.id.equals(id)) return true;
+        return false;
     }
 
-    private int totalWeight() {
-        int s = 0;
-        for (PalEntry e : palette) s += e.weight;
-        return s;
+    private void addSelectionToPalette() {
+        for (String id : pickerSelection) {
+            if (isInPalette(id)) continue;
+            Block b = BuiltInRegistries.BLOCK.get(new ResourceLocation(id));
+            palette.add(new PalEntry(id, 1, new ItemStack(b)));
+        }
+        pickerSelection.clear();
+        normalizeAll();
+        selectedPal = palette.isEmpty() ? -1 : palette.size() - 1;
+        refreshWeightControls();
     }
 
     private void removeSelectedPalette() {
@@ -310,11 +302,19 @@ public class PaintbrushScreen extends Screen {
 
     // ---- mask ----
 
-    private void addToMask(String id) {
-        for (IconEntry e : mask) if (e.id().equals(id)) return;
-        Block b = BuiltInRegistries.BLOCK.get(new ResourceLocation(id));
-        mask.add(new IconEntry(id, new ItemStack(b)));
-        selectedMask = mask.size() - 1;
+    private boolean isInMask(String id) {
+        for (IconEntry e : mask) if (e.id().equals(id)) return true;
+        return false;
+    }
+
+    private void addSelectionToMask() {
+        for (String id : pickerSelection) {
+            if (isInMask(id)) continue;
+            Block b = BuiltInRegistries.BLOCK.get(new ResourceLocation(id));
+            mask.add(new IconEntry(id, new ItemStack(b)));
+        }
+        pickerSelection.clear();
+        selectedMask = mask.isEmpty() ? -1 : mask.size() - 1;
     }
 
     private void removeSelectedMask() {
@@ -324,10 +324,6 @@ public class PaintbrushScreen extends Screen {
     }
 
     // ---- grid ----
-
-    private void setSelectedRandom() {
-        if (selectedCell >= 0 && selectedCell < cells.length) cells[selectedCell] = "";
-    }
 
     private void clearGrid() {
         for (int i = 0; i < cells.length; i++) cells[i] = "";
@@ -348,14 +344,6 @@ public class PaintbrushScreen extends Screen {
         return Math.max(0, rows - PROWS);
     }
 
-    private void pickBlock(String id) {
-        switch (pickTarget) {
-            case PALETTE -> addToPalette(id);
-            case MASK -> addToMask(id);
-            case CELL -> { if (selectedCell >= 0 && selectedCell < cells.length) cells[selectedCell] = id; }
-        }
-    }
-
     private void apply() {
         List<String> grid = new ArrayList<>(cells.length);
         for (String c : cells) grid.add(c == null ? "" : c);
@@ -364,15 +352,12 @@ public class PaintbrushScreen extends Screen {
         for (PalEntry e : palette) { palIds.add(e.id); palWeights.add(e.weight); }
         List<String> maskIds = new ArrayList<>();
         for (IconEntry e : mask) maskIds.add(e.id());
-        PainterNetwork.CHANNEL.sendToServer(new BrushConfigPacket(size, shape.name(), pattern.name(), grid, palIds, palWeights, maskIds));
+        PainterNetwork.CHANNEL.sendToServer(new BrushConfigPacket(size, shape.name(), mode.name(), grid, palIds, palWeights, maskIds));
         this.onClose();
     }
 
-    // ---- shape mask for the grid preview ----
-
     private boolean inShape(int row, int col) {
-        int radius = (size - 1) / 2;
-        int min = -radius;
+        int radius = (size - 1) / 2, min = -radius;
         int a = row + min, b = col + min;
         double offset = (size % 2 == 0) ? 0.5 : 0.0;
         double x = a - offset, y = b - offset, r = size / 2.0;
@@ -393,11 +378,12 @@ public class PaintbrushScreen extends Screen {
         g.fill(leftPos, topPos, leftPos + IMG_W, topPos + IMG_H, 0xF0141018);
         g.renderOutline(leftPos, topPos, IMG_W, IMG_H, 0xFF3A3450);
 
+        boolean custom = mode == PainterMod.BrushMode.CUSTOM;
         g.drawString(this.font, "Paintbrush", leftPos + 10, topPos + 8, 0xFFFFFF, false);
-        g.drawString(this.font, "Grid", gridX, topPos + 22, 0xA0A0B0, false);
+        g.drawString(this.font, custom ? "Grid (custom)" : "Grid (ignored)", gridX, topPos + 22, custom ? 0xA0A0B0 : 0x707070, false);
         g.drawString(this.font, "Blocks", pickerX, topPos + 8, 0xA0A0B0, false);
-        g.drawString(this.font, "Size:", gridX, topPos + 142, 0xC0C0D0, false);
-        g.drawString(this.font, String.valueOf(size), gridX + 54, topPos + 142, 0xFFFFFF, false);
+        g.drawString(this.font, "Size:", gridX, topPos + 166, 0xC0C0D0, false);
+        g.drawString(this.font, String.valueOf(size), gridX + 66, topPos + 166, 0xFFFFFF, false);
 
         Component hoverTip = null;
 
@@ -408,14 +394,11 @@ public class PaintbrushScreen extends Screen {
                 int cx = gridX + col * CELL, cy = gridY + row * CELL;
                 String id = cells[idx];
                 boolean random = id == null || id.isEmpty();
-                boolean active = inShape(row, col);
-
                 g.fill(cx, cy, cx + SLOT, cy + SLOT, random ? 0xFF262233 : 0xFF39344A);
                 g.renderOutline(cx, cy, SLOT, SLOT, 0xFF000000);
                 if (random) g.drawCenteredString(this.font, "?", cx + SLOT / 2, cy + 5, 0xFF8A8AA0);
                 else g.renderItem(new ItemStack(BuiltInRegistries.BLOCK.get(new ResourceLocation(id))), cx + 1, cy + 1);
-                if (!active) g.fill(cx, cy, cx + SLOT, cy + SLOT, 0x99101018); // dim: won't paint with this shape
-                if (idx == selectedCell && pickTarget == PickTarget.CELL) g.renderOutline(cx - 1, cy - 1, SLOT + 2, SLOT + 2, 0xFFF5C542);
+                if (!custom || !inShape(row, col)) g.fill(cx, cy, cx + SLOT, cy + SLOT, 0xAA0E0C14); // inactive/out-of-shape
                 if (inBox(mouseX, mouseY, cx, cy, SLOT, SLOT)) {
                     hoverTip = random ? Component.literal("Random")
                             : new ItemStack(BuiltInRegistries.BLOCK.get(new ResourceLocation(id))).getHoverName();
@@ -423,14 +406,19 @@ public class PaintbrushScreen extends Screen {
             }
         }
 
-        // picker
-        String target = switch (pickTarget) {
-            case PALETTE -> "Picking for: §ePalette";
-            case MASK -> "Picking for: §eMask";
-            case CELL -> selectedCell < 0 ? "Pick a cell first" : "Picking for: §eCell " + (selectedCell / size) + "," + (selectedCell % size);
-        };
-        g.drawString(this.font, target, pickerX, topPos + 160, 0xC0C0D0, false);
+        // active paint block (custom mode)
+        if (custom) {
+            g.drawString(this.font, "Paint:", gridX, topPos + 230, 0xC0C0D0, false);
+            if (selectedPal >= 0 && selectedPal < palette.size()) {
+                PalEntry e = palette.get(selectedPal);
+                g.renderItem(e.icon, gridX + 36, topPos + 226);
+                g.drawString(this.font, trim(e.icon.getHoverName().getString(), 12), gridX + 56, topPos + 230, 0xFFFFFF, false);
+            } else {
+                g.drawString(this.font, "§8pick a palette block", gridX + 36, topPos + 230, 0x808080, false);
+            }
+        }
 
+        // picker
         for (int r = 0; r < PROWS; r++) {
             for (int c = 0; c < PCOLS; c++) {
                 int fi = (scroll + r) * PCOLS + c;
@@ -439,7 +427,10 @@ public class PaintbrushScreen extends Screen {
                 int cx = pickerX + c * CELL, cy = pickerY + r * CELL;
                 g.fill(cx, cy, cx + SLOT, cy + SLOT, 0xFF2A2636);
                 g.renderItem(e.icon, cx + 1, cy + 1);
-                if (inBox(mouseX, mouseY, cx, cy, SLOT, SLOT)) { g.renderOutline(cx, cy, SLOT, SLOT, 0xFFF5C542); hoverTip = e.icon.getHoverName(); }
+                if (isInPalette(e.id)) g.fill(cx, cy, cx + SLOT, cy + SLOT, 0xB0123A18);        // in palette (green)
+                else if (isInMask(e.id)) g.fill(cx, cy, cx + SLOT, cy + SLOT, 0xB03A2410);      // in mask (amber)
+                else if (pickerSelection.contains(e.id)) g.renderOutline(cx, cy, SLOT, SLOT, 0xFFF5C542); // selected
+                if (inBox(mouseX, mouseY, cx, cy, SLOT, SLOT)) hoverTip = e.icon.getHoverName();
             }
         }
         int barX = pickerX + PCOLS * CELL, barTop = pickerY, barH = PROWS * CELL - 2;
@@ -451,9 +442,11 @@ public class PaintbrushScreen extends Screen {
             int thumbY = barTop + (barH - thumbH) * scroll / maxS;
             g.fill(barX, thumbY, barX + 4, thumbY + thumbH, 0xFF5A5478);
         }
+        if (!pickerSelection.isEmpty())
+            g.drawString(this.font, pickerSelection.size() + " sel", pickerX + 140, topPos + 145, 0xF5C542, false);
 
         // palette
-        g.drawString(this.font, "Palette (=100%)", pickerX, topPos + 172, 0xA0A0B0, false);
+        g.drawString(this.font, "Palette", pickerX, topPos + 162, 0xA0A0B0, false);
         for (int i = 0; i < palette.size(); i++) {
             int cx = pickerX + i * CELL, cy = palStripY;
             if (cx + SLOT > leftPos + IMG_W - 8) break;
@@ -464,10 +457,10 @@ public class PaintbrushScreen extends Screen {
             g.drawString(this.font, e.weight + "%", cx, cy + SLOT + 1, 0x909090, false);
             if (inBox(mouseX, mouseY, cx, cy, SLOT, SLOT)) hoverTip = e.icon.getHoverName();
         }
-        if (palette.isEmpty()) g.drawString(this.font, "§8(empty — use + Add)", pickerX, palStripY + 4, 0x808080, false);
+        if (palette.isEmpty()) g.drawString(this.font, "§8(select blocks, then + Palette)", pickerX, palStripY + 4, 0x808080, false);
 
         // mask
-        g.drawString(this.font, "Mask (optional)", pickerX, topPos + 240, 0xA0A0B0, false);
+        g.drawString(this.font, "Mask", pickerX, topPos + 224, 0xA0A0B0, false);
         for (int i = 0; i < mask.size(); i++) {
             int cx = pickerX + i * CELL, cy = maskStripY;
             if (cx + SLOT > leftPos + IMG_W - 8) break;
@@ -483,19 +476,25 @@ public class PaintbrushScreen extends Screen {
         if (hoverTip != null) g.renderTooltip(this.font, hoverTip, mouseX, mouseY);
     }
 
+    private static String trim(String s, int max) {
+        return s.length() <= max ? s : s.substring(0, max - 1) + "..";
+    }
+
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
         if (super.mouseClicked(mouseX, mouseY, button)) return true;
 
-        // grid
-        for (int row = 0; row < size; row++) {
-            for (int col = 0; col < size; col++) {
-                int cx = gridX + col * CELL, cy = gridY + row * CELL;
-                if (inBox(mouseX, mouseY, cx, cy, SLOT, SLOT)) {
-                    int idx = row * size + col;
-                    if (button == 1) cells[idx] = "";
-                    else { selectedCell = idx; pickTarget = PickTarget.CELL; }
-                    return true;
+        // grid (custom mode only)
+        if (mode == PainterMod.BrushMode.CUSTOM) {
+            for (int row = 0; row < size; row++) {
+                for (int col = 0; col < size; col++) {
+                    int cx = gridX + col * CELL, cy = gridY + row * CELL;
+                    if (inBox(mouseX, mouseY, cx, cy, SLOT, SLOT)) {
+                        int idx = row * size + col;
+                        if (button == 1) cells[idx] = "";
+                        else if (selectedPal >= 0 && selectedPal < palette.size()) cells[idx] = palette.get(selectedPal).id;
+                        return true;
+                    }
                 }
             }
         }
@@ -509,13 +508,18 @@ public class PaintbrushScreen extends Screen {
             int cx = pickerX + i * CELL, cy = maskStripY;
             if (inBox(mouseX, mouseY, cx, cy, SLOT, SLOT)) { selectedMask = i; return true; }
         }
-        // picker
+        // picker (toggle multi-select; ignore already-added)
         for (int r = 0; r < PROWS; r++) {
             for (int c = 0; c < PCOLS; c++) {
                 int fi = (scroll + r) * PCOLS + c;
                 if (fi < 0 || fi >= filtered.size()) continue;
                 int cx = pickerX + c * CELL, cy = pickerY + r * CELL;
-                if (inBox(mouseX, mouseY, cx, cy, SLOT, SLOT)) { pickBlock(filtered.get(fi).id); return true; }
+                if (inBox(mouseX, mouseY, cx, cy, SLOT, SLOT)) {
+                    String id = filtered.get(fi).id;
+                    if (isInPalette(id) || isInMask(id)) return true;
+                    if (!pickerSelection.remove(id)) pickerSelection.add(id);
+                    return true;
+                }
             }
         }
         return false;

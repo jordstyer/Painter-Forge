@@ -58,9 +58,9 @@ public final class PainterClientEvents {
 
         // 2. Display brush settings
         PainterMod.BrushShape shape = BrushData.getShape(stack, PainterMod.BrushShape.SQUARE);
-        PainterMod.PatternMode pattern = BrushData.getPattern(stack, PainterMod.PatternMode.RANDOM);
+        PainterMod.BrushMode mode = BrushData.getMode(stack, PainterMod.BrushMode.RANDOMIZE);
         lines.add(Component.literal("§b📐 Size: " + size + "x" + size + " §7(" + shape.name() + ")"));
-        lines.add(Component.literal("§b🎲 Pattern: §7" + pattern.name()));
+        lines.add(Component.literal("§b🎲 Mode: §7" + mode.name()));
 
         // 2b. Grid template preview (▪ = fixed block, · = random)
         if (BrushData.hasGridCells(stack, size)) {

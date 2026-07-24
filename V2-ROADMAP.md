@@ -67,6 +67,21 @@ Data model (stored in ItemStack NBT via `BrushData`):
 - [x] **Split right-click.** Plain right-click paints; **Shift + right-click opens the
       GUI** (both on a block and in the air).
 
+## Feedback round 2 (UX redesign)
+
+- [x] **Multi-select add flow.** Click blocks in the picker to toggle-highlight them
+      (they stay selected); press **+ Palette** or **+ Mask** to add the whole selection.
+      Blocks already in the palette grey **green**; blocks in the mask grey **amber**;
+      both are non-selectable. Remove via selecting a palette/mask entry + its Remove button.
+- [x] **Modes simplified to Randomize / Custom** (checkerboard & stripes removed).
+      *Randomize* draws a fresh weighted-random block per position on every right-click
+      (grid ignored). *Custom* uses the grid: select a palette block, click grid cells to
+      stamp it (icon shows), right-click a cell = random. Verified randomize is per-paint,
+      not a baked pattern.
+- [x] **Custom grid painting** driven by the selected palette block (not the picker);
+      the grid dims in Randomize mode and outside the current shape.
+- [x] **Layout reflow** to remove the overlapping labels/controls.
+
 Remaining from the user: "a few more fixes" to be addressed next.
 
 ## Notes / open questions

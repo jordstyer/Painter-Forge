@@ -25,7 +25,7 @@ public final class BrushData {
     private static final String MASK = "mask";
     private static final String SIZE = "size";
     private static final String SHAPE = "shape";
-    private static final String PATTERN = "pattern";
+    private static final String MODE = "mode";
     private static final String PROFILE = "profile";
     private static final String GRID = "grid";
     private static final String GRID_SIZE = "gridSize";
@@ -132,20 +132,20 @@ public final class BrushData {
         root(stack).putString(SHAPE, shape.name());
     }
 
-    // --- Pattern mode ---
+    // --- Brush mode (Randomize / Custom) ---
 
-    public static PainterMod.PatternMode getPattern(ItemStack stack, PainterMod.PatternMode fallback) {
+    public static PainterMod.BrushMode getMode(ItemStack stack, PainterMod.BrushMode fallback) {
         CompoundTag r = rootOrNull(stack);
-        if (r == null || !r.contains(PATTERN, Tag.TAG_STRING)) return fallback;
+        if (r == null || !r.contains(MODE, Tag.TAG_STRING)) return fallback;
         try {
-            return PainterMod.PatternMode.valueOf(r.getString(PATTERN).toUpperCase());
+            return PainterMod.BrushMode.valueOf(r.getString(MODE).toUpperCase());
         } catch (IllegalArgumentException e) {
             return fallback;
         }
     }
 
-    public static void setPattern(ItemStack stack, PainterMod.PatternMode pattern) {
-        root(stack).putString(PATTERN, pattern.name());
+    public static void setMode(ItemStack stack, PainterMod.BrushMode mode) {
+        root(stack).putString(MODE, mode.name());
     }
 
     // --- Active profile ---

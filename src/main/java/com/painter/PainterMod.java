@@ -22,17 +22,16 @@ public class PainterMod {
     }
 
     /**
-     * How a block is chosen for each painted position.
+     * How the brush decides what to place.
      * <ul>
-     *   <li>{@code RANDOM} — weighted random draw from the palette (the original behavior).</li>
-     *   <li>{@code CHECKERBOARD} — deterministic by {@code (x+y+z)} across the palette, so it tiles.</li>
-     *   <li>{@code STRIPES} — deterministic horizontal bands by {@code y} across the palette.</li>
+     *   <li>{@code RANDOMIZE} — every painted position draws a fresh weighted-random block
+     *       from the palette on each right-click; the grid template is ignored.</li>
+     *   <li>{@code CUSTOM} — use the grid template: each cell places its assigned block, and
+     *       any unset (RANDOM) cell draws from the palette.</li>
      * </ul>
-     * Non-random modes ignore the palette weights and just cycle through the palette blocks
-     * (ordered by registry id), so placement is seamless regardless of where you click.
      */
-    public enum PatternMode {
-        RANDOM, CHECKERBOARD, STRIPES
+    public enum BrushMode {
+        RANDOMIZE, CUSTOM
     }
 
     public PainterMod() {

@@ -37,7 +37,6 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.Property;
 
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -58,7 +57,7 @@ public class PainterLogic {
 
         int size = BrushData.getSize(brush, 1);
         PainterMod.BrushShape shape = BrushData.getShape(brush, PainterMod.BrushShape.SQUARE);
-        PainterMod.PatternMode pattern = BrushData.getPattern(brush, PainterMod.PatternMode.RANDOM);
+        PainterMod.BrushMode mode = BrushData.getMode(brush, PainterMod.BrushMode.RANDOMIZE);
 
         Map<Item, Integer> returnedItems = new HashMap<>();
         Set<Block> missingBlocks = new HashSet<>();
@@ -75,9 +74,11 @@ public class PainterLogic {
                 if (!isInShape(a, b, size, shape)) continue;
 
                 BlockPos targetPos = getRelativePos(centerPos, side, a, b);
-                // Grid cell for this footprint position (null = RANDOM -> use palette/pattern).
-                Block fixedBlock = BrushData.getCell(brush, size, a - min, b - min);
-                Item item = paintSingle(world, targetPos, player, palette, brush, pattern, fixedBlock, missingBlocks, changes);
+                // Custom mode uses the grid cell (null cell = RANDOM -> palette draw).
+                // Randomize mode ignores the grid and always draws from the palette.
+                Block fixedBlock = (mode == PainterMod.BrushMode.CUSTOM)
+                        ? BrushData.getCell(brush, size, a - min, b - min) : null;
+                Item item = paintSingle(world, targetPos, player, palette, brush, fixedBlock, missingBlocks, changes);
 
                 if (item != null) {
                     changedCount++;
@@ -134,7 +135,7 @@ public class PainterLogic {
     }
 
     private static Item paintSingle(Level world, BlockPos pos, Player player, PaletteData palette,
-                                    ItemStack brush, PainterMod.PatternMode pattern, Block fixedBlock,
+                                    ItemStack brush, Block fixedBlock,
                                     Set<Block> missingBlocks, List<UndoManager.Change> changes) {
         BlockState oldState = world.getBlockState(pos);
 
@@ -152,8 +153,8 @@ public class PainterLogic {
         // 3. UNBREAKABLE GUARD: Prevent painting Bedrock, End Portals, etc.
         if (oldState.getDestroySpeed(world, pos) < 0.0F) return null;
 
-        // Fixed grid cell wins; otherwise fall back to the palette/pattern draw.
-        Block target = (fixedBlock != null) ? fixedBlock : pickBlock(palette, pos, pattern, world.random);
+        // Fixed grid cell wins; otherwise draw a fresh weighted-random block from the palette.
+        Block target = (fixedBlock != null) ? fixedBlock : pickRandom(palette.weights(), world.random);
         if (target == null || oldState.is(target) || !isCompatible(oldState, target)) return null;
 
         if (!player.isCreative() && !consumeItem(player, target.asItem())) {
@@ -197,39 +198,6 @@ public class PainterLogic {
 
     private static <T extends Comparable<T>> BlockState copyProp(BlockState s1, BlockState s2, Property<T> p) {
         return s2.setValue(p, s1.getValue(p));
-    }
-
-    /**
-     * Chooses the block to place at {@code pos} according to the pattern mode.
-     * RANDOM uses the weighted draw; the other modes are deterministic functions of
-     * the world coordinates, so a pattern tiles seamlessly no matter where painting starts.
-     */
-    private static Block pickBlock(PaletteData palette, BlockPos pos, PainterMod.PatternMode pattern, RandomSource random) {
-        Map<Block, Integer> weights = palette.weights();
-        if (weights.isEmpty()) return null;
-
-        switch (pattern) {
-            case CHECKERBOARD -> {
-                List<Block> blocks = orderedBlocks(weights);
-                int idx = Math.floorMod(pos.getX() + pos.getY() + pos.getZ(), blocks.size());
-                return blocks.get(idx);
-            }
-            case STRIPES -> {
-                List<Block> blocks = orderedBlocks(weights);
-                int idx = Math.floorMod(pos.getY(), blocks.size());
-                return blocks.get(idx);
-            }
-            default -> {
-                return pickRandom(weights, random);
-            }
-        }
-    }
-
-    /** Palette blocks in a stable order (by registry id) so patterns are deterministic. */
-    private static List<Block> orderedBlocks(Map<Block, Integer> weights) {
-        List<Block> list = new ArrayList<>(weights.keySet());
-        list.sort(Comparator.comparing(b -> BuiltInRegistries.BLOCK.getKey(b).toString()));
-        return list;
     }
 
     private static Block pickRandom(Map<Block, Integer> weights, RandomSource random) {

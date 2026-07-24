@@ -28,17 +28,17 @@ public class BrushConfigPacket {
 
     private final int size;
     private final String shape;
-    private final String pattern;
+    private final String mode;
     private final List<String> cells;
     private final List<String> palIds;
     private final List<Integer> palWeights;
     private final List<String> maskIds;
 
-    public BrushConfigPacket(int size, String shape, String pattern, List<String> cells,
+    public BrushConfigPacket(int size, String shape, String mode, List<String> cells,
                              List<String> palIds, List<Integer> palWeights, List<String> maskIds) {
         this.size = size;
         this.shape = shape;
-        this.pattern = pattern;
+        this.mode = mode;
         this.cells = cells;
         this.palIds = palIds;
         this.palWeights = palWeights;
@@ -48,7 +48,7 @@ public class BrushConfigPacket {
     public static void encode(BrushConfigPacket m, FriendlyByteBuf buf) {
         buf.writeVarInt(m.size);
         buf.writeUtf(m.shape == null ? "SQUARE" : m.shape, 64);
-        buf.writeUtf(m.pattern == null ? "RANDOM" : m.pattern, 64);
+        buf.writeUtf(m.mode == null ? "RANDOMIZE" : m.mode, 64);
         buf.writeVarInt(m.cells.size());
         for (String s : m.cells) buf.writeUtf(s == null ? "" : s, 256);
         buf.writeVarInt(m.palIds.size());
@@ -63,7 +63,7 @@ public class BrushConfigPacket {
     public static BrushConfigPacket decode(FriendlyByteBuf buf) {
         int size = buf.readVarInt();
         String shape = buf.readUtf(64);
-        String pattern = buf.readUtf(64);
+        String mode = buf.readUtf(64);
         int cellCount = Math.max(0, Math.min(buf.readVarInt(), 64));
         List<String> cells = new ArrayList<>(cellCount);
         for (int i = 0; i < cellCount; i++) cells.add(buf.readUtf(256));
@@ -77,7 +77,7 @@ public class BrushConfigPacket {
         int maskCount = Math.max(0, Math.min(buf.readVarInt(), 256));
         List<String> maskIds = new ArrayList<>(maskCount);
         for (int i = 0; i < maskCount; i++) maskIds.add(buf.readUtf(256));
-        return new BrushConfigPacket(size, shape, pattern, cells, palIds, palWeights, maskIds);
+        return new BrushConfigPacket(size, shape, mode, cells, palIds, palWeights, maskIds);
     }
 
     public static void handle(BrushConfigPacket m, Supplier<NetworkEvent.Context> ctx) {
@@ -97,7 +97,7 @@ public class BrushConfigPacket {
             } catch (IllegalArgumentException ignored) {
             }
             try {
-                BrushData.setPattern(stack, PainterMod.PatternMode.valueOf(m.pattern));
+                BrushData.setMode(stack, PainterMod.BrushMode.valueOf(m.mode));
             } catch (IllegalArgumentException ignored) {
             }
 
