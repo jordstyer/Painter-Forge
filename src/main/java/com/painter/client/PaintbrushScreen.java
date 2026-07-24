@@ -159,14 +159,15 @@ public class PaintbrushScreen extends Screen {
         addRenderableWidget(Button.builder(Component.literal("+ Palette"), b -> addSelectionToPalette()).bounds(pickerX, topPos + 142, 72, 16).build());
         addRenderableWidget(Button.builder(Component.literal("+ Mask"), b -> addSelectionToMask()).bounds(pickerX + 76, topPos + 142, 60, 16).build());
 
-        // ---- palette row: Remove + weight slider + numeric box (below the strip+labels) ----
+        // ---- palette row: weight slider + numeric box + Remove (below the strip+labels) ----
+        // Budget from pickerX is ~182px (panel edge minus margin); slider 86 + box 30 + Remove 48 + 2 gaps of 4 = 172.
         int palControlY = palStripY + 30; // strip (18) + %-text (~8) + gap
-        addRenderableWidget(Button.builder(Component.literal("Remove"), b -> removeSelectedPalette()).bounds(pickerX + 118, palControlY, 44, 16).build());
-        this.slider = new WeightSlider(pickerX, palControlY, 112, 16);
+        this.slider = new WeightSlider(pickerX, palControlY, 86, 16);
         addRenderableWidget(this.slider);
-        this.weightBox = new EditBox(this.font, pickerX + 116, palControlY, 34, 16, Component.literal("%"));
+        this.weightBox = new EditBox(this.font, pickerX + 90, palControlY, 30, 16, Component.literal("%"));
         this.weightBox.setResponder(this::onWeightTyped);
         addRenderableWidget(this.weightBox);
+        addRenderableWidget(Button.builder(Component.literal("Remove"), b -> removeSelectedPalette()).bounds(pickerX + 124, palControlY, 48, 16).build());
 
         // ---- mask row: Remove + Include/Exclude toggle (below the strip) ----
         int maskControlY = maskStripY + 22;
