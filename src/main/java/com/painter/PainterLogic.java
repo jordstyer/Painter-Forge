@@ -36,8 +36,10 @@ import net.minecraft.world.level.block.WallBlock;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.Property;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -55,9 +57,11 @@ public class PainterLogic {
 
         int size = BrushData.getSize(brush, 1);
         PainterMod.BrushShape shape = BrushData.getShape(brush, PainterMod.BrushShape.SQUARE);
+        PainterMod.BrushMode mode = BrushData.getMode(brush, PainterMod.BrushMode.RANDOMIZE);
 
         Map<Item, Integer> returnedItems = new HashMap<>();
         Set<Block> missingBlocks = new HashSet<>();
+        List<UndoManager.Change> changes = new ArrayList<>();
         int changedCount = 0;
         BlockState lastState = null;
 
@@ -70,7 +74,11 @@ public class PainterLogic {
                 if (!isInShape(a, b, size, shape)) continue;
 
                 BlockPos targetPos = getRelativePos(centerPos, side, a, b);
-                Item item = paintSingle(world, targetPos, player, palette, brush, missingBlocks);
+                // Custom mode uses the grid cell (null cell = RANDOM -> palette draw).
+                // Randomize mode ignores the grid and always draws from the palette.
+                Block fixedBlock = (mode == PainterMod.BrushMode.CUSTOM)
+                        ? BrushData.getCell(brush, size, a - min, b - min) : null;
+                Item item = paintSingle(world, targetPos, player, palette, brush, fixedBlock, missingBlocks, changes);
 
                 if (item != null) {
                     changedCount++;
@@ -88,6 +96,10 @@ public class PainterLogic {
                     .map(block -> block.getName().getString())
                     .collect(Collectors.joining(", "));
             player.displayClientMessage(Component.literal("§cOut of stock: §f" + missingBlockNames), true);
+        }
+
+        if (changedCount > 0 && player instanceof ServerPlayer sp) {
+            UndoManager.record(sp, changes);
         }
 
         if (changedCount > 0 && lastState != null) {
@@ -123,14 +135,19 @@ public class PainterLogic {
     }
 
     private static Item paintSingle(Level world, BlockPos pos, Player player, PaletteData palette,
-                                    ItemStack brush, Set<Block> missingBlocks) {
+                                    ItemStack brush, Block fixedBlock,
+                                    Set<Block> missingBlocks, List<UndoManager.Change> changes) {
         BlockState oldState = world.getBlockState(pos);
 
-        // 1. MASK GUARD: If a mask is set, only replace blocks in the mask.
+        // 1. MASK GUARD: INCLUDE = only replace listed blocks; EXCLUDE = replace anything but them.
         if (BrushData.hasMask(brush)) {
             PaletteData mask = BrushData.getMask(brush);
-            if (mask != null && !mask.weights().containsKey(oldState.getBlock())) {
-                return null;
+            if (mask != null) {
+                boolean listed = mask.weights().containsKey(oldState.getBlock());
+                boolean exclude = BrushData.getMaskMode(brush, PainterMod.MaskMode.INCLUDE) == PainterMod.MaskMode.EXCLUDE;
+                if (exclude ? listed : !listed) {
+                    return null;
+                }
             }
         }
 
@@ -140,7 +157,11 @@ public class PainterLogic {
         // 3. UNBREAKABLE GUARD: Prevent painting Bedrock, End Portals, etc.
         if (oldState.getDestroySpeed(world, pos) < 0.0F) return null;
 
-        Block target = pickRandom(palette.weights(), world.random);
+        // Fixed grid cell wins; otherwise draw a fresh weighted-random block from the palette.
+        // If the palette offers a block other than what's already here, prefer one of those —
+        // otherwise a same-block draw silently "fails" and wastes the click (a 1-in-N chance
+        // per position that grows very noticeable on small brushes / few-block palettes).
+        Block target = (fixedBlock != null) ? fixedBlock : pickBlockExcluding(palette.weights(), world.random, oldState.getBlock());
         if (target == null || oldState.is(target) || !isCompatible(oldState, target)) return null;
 
         if (!player.isCreative() && !consumeItem(player, target.asItem())) {
@@ -154,8 +175,10 @@ public class PainterLogic {
         }
         world.setBlock(pos, newState, 2);
 
-        // Return the item evaluated by our anti-cheat logic
-        return getReturnedItem(oldState);
+        // Record for undo (immutable pos) and return the item from our anti-cheat logic.
+        Item returned = getReturnedItem(oldState);
+        changes.add(new UndoManager.Change(pos.immutable(), oldState, target, returned));
+        return returned;
     }
 
     private static Item getReturnedItem(BlockState state) {
@@ -192,6 +215,19 @@ public class PainterLogic {
             if ((roll -= entry.getValue()) < 0) return entry.getKey();
         }
         return null;
+    }
+
+    /**
+     * Weighted-random draw that avoids {@code exclude} when the palette has any other
+     * option. Only returns {@code exclude} if it's the sole entry in the palette.
+     */
+    private static Block pickBlockExcluding(Map<Block, Integer> weights, RandomSource random, Block exclude) {
+        if (weights.containsKey(exclude) && weights.size() > 1) {
+            Map<Block, Integer> filtered = new HashMap<>(weights);
+            filtered.remove(exclude);
+            return pickRandom(filtered, random);
+        }
+        return pickRandom(weights, random);
     }
 
     private static boolean isCompatible(BlockState oldState, Block target) {

@@ -3,6 +3,7 @@ package com.painter.client;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.painter.BrushData;
+import com.painter.ModItems;
 import com.painter.PaletteData;
 import com.painter.PainterMod;
 import net.minecraft.client.Minecraft;
@@ -15,7 +16,6 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.Items;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.BlockHitResult;
@@ -46,7 +46,8 @@ public final class PainterClientEvents {
     @SubscribeEvent
     public static void onTooltip(ItemTooltipEvent event) {
         ItemStack stack = event.getItemStack();
-        if (!BrushData.hasPalette(stack) && !BrushData.hasMask(stack)) return;
+        int size = BrushData.getSize(stack, 1);
+        if (!BrushData.hasPalette(stack) && !BrushData.hasMask(stack) && !BrushData.hasGridCells(stack, size)) return;
 
         List<Component> lines = event.getToolTip();
 
@@ -56,15 +57,29 @@ public final class PainterClientEvents {
         }
 
         // 2. Display brush settings
-        int size = BrushData.getSize(stack, 1);
         PainterMod.BrushShape shape = BrushData.getShape(stack, PainterMod.BrushShape.SQUARE);
+        PainterMod.BrushMode mode = BrushData.getMode(stack, PainterMod.BrushMode.RANDOMIZE);
         lines.add(Component.literal("§b📐 Size: " + size + "x" + size + " §7(" + shape.name() + ")"));
+        lines.add(Component.literal("§b🎲 Mode: §7" + mode.name()));
+
+        // 2b. Grid template preview (▪ = fixed block, · = random)
+        if (BrushData.hasGridCells(stack, size)) {
+            lines.add(Component.literal("§9🔲 Grid template:"));
+            for (int row = 0; row < size; row++) {
+                StringBuilder sb = new StringBuilder("  §7");
+                for (int col = 0; col < size; col++) {
+                    sb.append(BrushData.getCell(stack, size, row, col) != null ? "§b▪" : "§8·").append(' ');
+                }
+                lines.add(Component.literal(sb.toString()));
+            }
+        }
 
         // 3. Display Mask if it exists
         if (BrushData.hasMask(stack)) {
             PaletteData maskData = BrushData.getMask(stack);
             if (maskData != null && !maskData.weights().isEmpty()) {
-                lines.add(Component.literal("§d🎯 Mask:"));
+                PainterMod.MaskMode maskMode = BrushData.getMaskMode(stack, PainterMod.MaskMode.INCLUDE);
+                lines.add(Component.literal("§d🎯 Mask §7(" + maskMode.name() + "):"));
                 String blockNames = maskData.weights().keySet().stream()
                         .map(block -> block.getName().getString())
                         .collect(Collectors.joining(", "));
@@ -177,7 +192,7 @@ public final class PainterClientEvents {
 
     private static boolean isBrush(ItemStack stack) {
         return !stack.isEmpty()
-                && stack.getItem() == Items.BRUSH
+                && stack.is(ModItems.PAINTBRUSH.get())
                 && (BrushData.hasSize(stack) || BrushData.hasPalette(stack));
     }
 

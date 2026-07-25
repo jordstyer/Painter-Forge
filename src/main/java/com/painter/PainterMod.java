@@ -1,6 +1,8 @@
 package com.painter;
 
+import net.minecraftforge.eventbus.api.IEventBus;
 import net.minecraftforge.fml.common.Mod;
+import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
 
 /**
  * Forge 1.20.1 port of the Painter mod (originally Fabric 1.21).
@@ -19,7 +21,39 @@ public class PainterMod {
         SQUARE, CIRCLE, DIAMOND
     }
 
+    /**
+     * How the brush decides what to place.
+     * <ul>
+     *   <li>{@code RANDOMIZE} — every painted position draws a fresh weighted-random block
+     *       from the palette on each right-click; the grid template is ignored.</li>
+     *   <li>{@code CUSTOM} — use the grid template: each cell places its assigned block, and
+     *       any unset (RANDOM) cell draws from the palette.</li>
+     * </ul>
+     */
+    public enum BrushMode {
+        RANDOMIZE, CUSTOM
+    }
+
+    /**
+     * How the mask filters paintable blocks.
+     * <ul>
+     *   <li>{@code INCLUDE} — only the listed blocks can be painted over (original behavior).</li>
+     *   <li>{@code EXCLUDE} — every block can be painted over <em>except</em> the listed ones.</li>
+     * </ul>
+     */
+    public enum MaskMode {
+        INCLUDE, EXCLUDE
+    }
+
     public PainterMod() {
+        IEventBus modEventBus = FMLJavaModLoadingContext.get().getModEventBus();
+
+        // Register the Paintbrush item (and any future items).
+        ModItems.ITEMS.register(modEventBus);
+
+        // Set up the client<->server channel used by the configuration GUI.
+        com.painter.net.PainterNetwork.register();
+
         // Load saved brush profiles from the config directory at startup.
         ProfileManager.loadFromDisk();
         // Command/interaction/tooltip/render handlers register themselves through
