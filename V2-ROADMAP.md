@@ -100,6 +100,26 @@ Data model (stored in ItemStack NBT via `BrushData`):
 
 User: "3 more things and then we can call version 2 complete" — this closes that list.
 
+## Feedback round 4 (GUI theming, bug fixes, performance)
+
+- [x] **GUI background.** Replaced the flat panel fill with a generated texture,
+      iterated from a dark painter-studio theme to a lighter **Bob Ross-style
+      landscape** (sky, clouds, snow-capped mountains, reflective lake, evergreen
+      trees, wooden frame) per feedback. Loose labels now use drop-shadows/brighter
+      colors to stay legible over the art.
+- [x] **"Not painting on walls" investigated and fixed.** Traced live via a temporary
+      chat debug readout (face/block/creative/painted/palette-contents) rather than
+      guessing — turned out to be a real UX bug, not a wall-specific one: the
+      weighted-random draw could re-pick the block already at the target position,
+      which is correctly a no-op, but with a small palette that was happening often
+      enough to look broken. Fixed by excluding the existing block from the draw
+      whenever the palette has other options (`pickBlockExcluding`).
+- [x] **Paint cooldown.** Holding right-click resends the interact packet almost
+      every tick, so brushing had no natural rate limit the way manual block
+      placement does. Added a 4-tick cooldown via vanilla's `ItemCooldowns` (same
+      system as ender pearls) — also gives the hotbar sweep indicator for free.
+      Only gates painting; shift+right-click to open the GUI is unaffected.
+
 ## Notes / open questions
 
 - Recipe is currently `brush + white_dye`; revisit once the item feels right.
