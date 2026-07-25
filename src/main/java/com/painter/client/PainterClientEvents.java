@@ -209,12 +209,14 @@ public final class PainterClientEvents {
     }
 
     // Must stay identical to PainterLogic.getRelativePos, or the outline preview will
-    // show a different footprint than what actually gets painted.
+    // show a different footprint than what actually gets painted. Row 0 is the TOP row
+    // in the grid editor, so on wall faces the Y offset is -a (not a) — row 0 must land
+    // at the highest Y, not the lowest.
     private static BlockPos getRelativePos(BlockPos pos, Direction side, int a, int b) {
         return switch (side.getAxis()) {
-            case X -> pos.offset(0, a, b);
+            case X -> pos.offset(0, -a, b);
             case Y -> pos.offset(a, 0, b);
-            case Z -> pos.offset(b, a, 0);
+            case Z -> pos.offset(b, -a, 0);
         };
     }
 }

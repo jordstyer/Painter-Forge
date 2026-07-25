@@ -200,17 +200,19 @@ public class PainterLogic {
 
     /**
      * Maps brush-local offsets to world space. {@code a} is always the "row" axis and
-     * {@code b} the "column" axis, matching the grid editor (row increases downward,
-     * column increases rightward). For wall faces (X/Z axis) that means {@code a} must
-     * always land on Y (vertical) — the two wall axes previously mapped {@code a}
-     * differently (X-axis walls to Y, Z-axis walls to X), which rotated any custom grid
-     * pattern 90° depending on which way the wall faced.
+     * {@code b} the "column" axis, matching the grid editor (row 0 is the TOP row,
+     * increasing downward; column increases rightward). For wall faces (X/Z axis) that
+     * means {@code a} must always land on Y (vertical), and — since row 0 corresponds
+     * to the smallest {@code a} value but should land at the TOP (highest Y) — the Y
+     * offset must be {@code -a}, not {@code a}. (A first attempt at unifying the two
+     * wall axes used {@code +a} for both, which made them agree with each other but
+     * both upside down: row 0 landed at the bottom of the wall instead of the top.)
      */
     private static BlockPos getRelativePos(BlockPos pos, Direction side, int a, int b) {
         return switch (side.getAxis()) {
-            case X -> pos.offset(0, a, b);
+            case X -> pos.offset(0, -a, b);
             case Y -> pos.offset(a, 0, b);
-            case Z -> pos.offset(b, a, 0);
+            case Z -> pos.offset(b, -a, 0);
         };
     }
 
