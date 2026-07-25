@@ -1,5 +1,6 @@
 package com.painter;
 
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
@@ -21,9 +22,19 @@ import java.util.Map;
  *       the interaction when a paint actually happens so ordinary block use survives.</li>
  * </ul>
  * Right-clicking the air is handled by {@link PaintbrushItem#use} (sneak = open GUI).
+ *
+ * <p>Painting is rate-limited via vanilla's item-cooldown system ({@link
+ * net.minecraft.world.item.ItemCooldowns}) — the same mechanism items like ender
+ * pearls use, complete with the hotbar sweep indicator. Without it, holding right-click
+ * paints once almost every tick (the client resends the interact packet continuously
+ * while the button is held), which is far more block edits per second than a player
+ * could ever generate manually placing blocks — a real lag risk on a large brush.</p>
  */
 @Mod.EventBusSubscriber(modid = PainterMod.MOD_ID, bus = Mod.EventBusSubscriber.Bus.FORGE)
 public final class PainterInteractions {
+
+    /** Minimum ticks between paints per player, ~ the pace of manual block placement. */
+    private static final int PAINT_COOLDOWN_TICKS = 4;
 
     private PainterInteractions() {
     }
@@ -36,7 +47,7 @@ public final class PainterInteractions {
         Player player = event.getEntity();
         Level world = event.getLevel();
 
-        // Sneak = open the config GUI (never paint).
+        // Sneak = open the config GUI (never paint, never subject to the cooldown).
         if (player.isShiftKeyDown()) {
             if (world.isClientSide()) {
                 DistExecutor.unsafeRunWhenOn(Dist.CLIENT,
@@ -50,6 +61,15 @@ public final class PainterInteractions {
         // Paint (server side only does the work).
         if (world.isClientSide()) return;
 
+        if (player instanceof ServerPlayer serverPlayer
+                && serverPlayer.getCooldowns().isOnCooldown(stack.getItem())) {
+            // Still cooling down from the last paint; swallow the click so vanilla
+            // brushing/interaction doesn't fire, but don't touch the world.
+            event.setCanceled(true);
+            event.setCancellationResult(InteractionResult.PASS);
+            return;
+        }
+
         int size = BrushData.getSize(stack, 1);
         PainterMod.BrushMode mode = BrushData.getMode(stack, PainterMod.BrushMode.RANDOMIZE);
         PaletteData palette = BrushData.hasPalette(stack) ? BrushData.getPalette(stack) : new PaletteData(Map.of());
@@ -62,6 +82,9 @@ public final class PainterInteractions {
                 palette == null ? new PaletteData(Map.of()) : palette);
 
         if (success) {
+            if (player instanceof ServerPlayer serverPlayer) {
+                serverPlayer.getCooldowns().addCooldown(stack.getItem(), PAINT_COOLDOWN_TICKS);
+            }
             event.setCanceled(true);
             event.setCancellationResult(InteractionResult.SUCCESS);
         }
