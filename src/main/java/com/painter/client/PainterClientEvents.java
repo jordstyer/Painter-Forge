@@ -208,11 +208,13 @@ public final class PainterClientEvents {
         };
     }
 
+    // Must stay identical to PainterLogic.getRelativePos, or the outline preview will
+    // show a different footprint than what actually gets painted.
     private static BlockPos getRelativePos(BlockPos pos, Direction side, int a, int b) {
         return switch (side.getAxis()) {
             case X -> pos.offset(0, a, b);
             case Y -> pos.offset(a, 0, b);
-            case Z -> pos.offset(a, b, 0);
+            case Z -> pos.offset(b, a, 0);
         };
     }
 }

@@ -158,10 +158,13 @@ public class PainterLogic {
         if (oldState.getDestroySpeed(world, pos) < 0.0F) return null;
 
         // Fixed grid cell wins; otherwise draw a fresh weighted-random block from the palette.
-        // If the palette offers a block other than what's already here, prefer one of those —
-        // otherwise a same-block draw silently "fails" and wastes the click (a 1-in-N chance
-        // per position that grows very noticeable on small brushes / few-block palettes).
-        Block target = (fixedBlock != null) ? fixedBlock : pickBlockExcluding(palette.weights(), world.random, oldState.getBlock());
+        // This must be a plain, unbiased draw: excluding the existing block from the pool
+        // (an earlier attempt at this) skews the real percentages whenever the surface being
+        // painted matches one of the palette's own blocks — e.g. 25% cobblestone / 75% cobbled
+        // deepslate painted onto cobblestone would force every cobblestone cell to deepslate,
+        // since cobblestone was the only excluded option. A same-block draw is a legitimate,
+        // intended outcome of the weights, not a failure to route around.
+        Block target = (fixedBlock != null) ? fixedBlock : pickRandom(palette.weights(), world.random);
         if (target == null || oldState.is(target) || !isCompatible(oldState, target)) return null;
 
         if (!player.isCreative() && !consumeItem(player, target.asItem())) {
@@ -195,11 +198,19 @@ public class PainterLogic {
         return block.asItem();
     }
 
+    /**
+     * Maps brush-local offsets to world space. {@code a} is always the "row" axis and
+     * {@code b} the "column" axis, matching the grid editor (row increases downward,
+     * column increases rightward). For wall faces (X/Z axis) that means {@code a} must
+     * always land on Y (vertical) — the two wall axes previously mapped {@code a}
+     * differently (X-axis walls to Y, Z-axis walls to X), which rotated any custom grid
+     * pattern 90° depending on which way the wall faced.
+     */
     private static BlockPos getRelativePos(BlockPos pos, Direction side, int a, int b) {
         return switch (side.getAxis()) {
             case X -> pos.offset(0, a, b);
             case Y -> pos.offset(a, 0, b);
-            case Z -> pos.offset(a, b, 0);
+            case Z -> pos.offset(b, a, 0);
         };
     }
 
@@ -215,19 +226,6 @@ public class PainterLogic {
             if ((roll -= entry.getValue()) < 0) return entry.getKey();
         }
         return null;
-    }
-
-    /**
-     * Weighted-random draw that avoids {@code exclude} when the palette has any other
-     * option. Only returns {@code exclude} if it's the sole entry in the palette.
-     */
-    private static Block pickBlockExcluding(Map<Block, Integer> weights, RandomSource random, Block exclude) {
-        if (weights.containsKey(exclude) && weights.size() > 1) {
-            Map<Block, Integer> filtered = new HashMap<>(weights);
-            filtered.remove(exclude);
-            return pickRandom(filtered, random);
-        }
-        return pickRandom(weights, random);
     }
 
     private static boolean isCompatible(BlockState oldState, Block target) {
