@@ -451,9 +451,13 @@ public class PaintbrushScreen extends Screen {
                 int cx = pickerX + c * CELL, cy = pickerY + r * CELL;
                 g.fill(cx, cy, cx + SLOT, cy + SLOT, 0xFF2A2636);
                 g.renderItem(e.icon, cx + 1, cy + 1);
-                if (isInPalette(e.id)) g.fill(cx, cy, cx + SLOT, cy + SLOT, 0xB0123A18);        // in palette (green)
-                else if (isInMask(e.id)) g.fill(cx, cy, cx + SLOT, cy + SLOT, 0xB03A2410);      // in mask (amber)
-                else if (pickerSelection.contains(e.id)) g.renderOutline(cx, cy, SLOT, SLOT, 0xFFF5C542); // selected
+                // Palette/mask membership tints and the selection outline are independent —
+                // a block can be in both lists, and can still be re-selected to add to the other.
+                boolean inPal = isInPalette(e.id), inMsk = isInMask(e.id);
+                if (inPal && inMsk) g.fill(cx, cy, cx + SLOT, cy + SLOT, 0xB0703CA0);      // in both (violet)
+                else if (inPal) g.fill(cx, cy, cx + SLOT, cy + SLOT, 0xB0123A18);          // in palette (green)
+                else if (inMsk) g.fill(cx, cy, cx + SLOT, cy + SLOT, 0xB03A2410);          // in mask (amber)
+                if (pickerSelection.contains(e.id)) g.renderOutline(cx, cy, SLOT, SLOT, 0xFFF5C542); // selected
                 if (inBox(mouseX, mouseY, cx, cy, SLOT, SLOT)) hoverTip = e.icon.getHoverName();
             }
         }
@@ -570,7 +574,10 @@ public class PaintbrushScreen extends Screen {
             int cx = pickerX + i * CELL, cy = maskStripY;
             if (inBox(mouseX, mouseY, cx, cy, SLOT, SLOT)) { selectedMask = i; return true; }
         }
-        // picker (toggle multi-select; ignore already-added)
+        // picker (toggle multi-select). A block already in the palette or mask can
+        // still be selected here — the two lists are independent, so e.g. cobblestone
+        // can be both a palette color and a mask entry. The add-to-X actions below
+        // already skip a block that's already in that specific target list.
         for (int r = 0; r < PROWS; r++) {
             for (int c = 0; c < PCOLS; c++) {
                 int fi = (scroll + r) * PCOLS + c;
@@ -578,7 +585,6 @@ public class PaintbrushScreen extends Screen {
                 int cx = pickerX + c * CELL, cy = pickerY + r * CELL;
                 if (inBox(mouseX, mouseY, cx, cy, SLOT, SLOT)) {
                     String id = filtered.get(fi).id;
-                    if (isInPalette(id) || isInMask(id)) return true;
                     if (!pickerSelection.remove(id)) pickerSelection.add(id);
                     return true;
                 }
