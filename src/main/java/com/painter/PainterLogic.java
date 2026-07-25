@@ -158,7 +158,10 @@ public class PainterLogic {
         if (oldState.getDestroySpeed(world, pos) < 0.0F) return null;
 
         // Fixed grid cell wins; otherwise draw a fresh weighted-random block from the palette.
-        Block target = (fixedBlock != null) ? fixedBlock : pickRandom(palette.weights(), world.random);
+        // If the palette offers a block other than what's already here, prefer one of those —
+        // otherwise a same-block draw silently "fails" and wastes the click (a 1-in-N chance
+        // per position that grows very noticeable on small brushes / few-block palettes).
+        Block target = (fixedBlock != null) ? fixedBlock : pickBlockExcluding(palette.weights(), world.random, oldState.getBlock());
         if (target == null || oldState.is(target) || !isCompatible(oldState, target)) return null;
 
         if (!player.isCreative() && !consumeItem(player, target.asItem())) {
@@ -212,6 +215,19 @@ public class PainterLogic {
             if ((roll -= entry.getValue()) < 0) return entry.getKey();
         }
         return null;
+    }
+
+    /**
+     * Weighted-random draw that avoids {@code exclude} when the palette has any other
+     * option. Only returns {@code exclude} if it's the sole entry in the palette.
+     */
+    private static Block pickBlockExcluding(Map<Block, Integer> weights, RandomSource random, Block exclude) {
+        if (weights.containsKey(exclude) && weights.size() > 1) {
+            Map<Block, Integer> filtered = new HashMap<>(weights);
+            filtered.remove(exclude);
+            return pickRandom(filtered, random);
+        }
+        return pickRandom(weights, random);
     }
 
     private static boolean isCompatible(BlockState oldState, Block target) {
